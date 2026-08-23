@@ -1,0 +1,13 @@
+[package]
+name = "vigile-backend-selinux"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Vigile selinux backend"
+
+[lints]
+workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }

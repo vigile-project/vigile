@@ -67,6 +67,10 @@ détectée + 7 tests). 157 tests workspace verts, clippy 0.
 > est complet. **M8 complet** (sprint 9, 2026-08-23) : spec RPM
 > (build + install + systemd + utilisateur) + script break-glass
 > contraint. 205 tests verts.
+> **Phases 4-7 closes** (sprint 10, 2026-08-23) : backends USBGuard
+> (lsusb + règles + approbations), AppArmor (profils + aa-status),
+> SELinux (AVC parsing + agrégation + stub module), nftables
+> (workload identity + règle réseau + génération). 227 tests verts.
 
 > **Avancement (2026-08-21, soir)** : M0 **complet** — ISS-001/002/003
 > faites ; spikes ISS-006 (PKI/TLS, GO conditionnel), ISS-007 (JCS, GO —

@@ -1829,6 +1829,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "vigile-backend-apparmor"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "vigile-backend-fapolicyd"
 version = "0.1.0"
 dependencies = [
@@ -1844,6 +1852,30 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.11.0",
+]
+
+[[package]]
+name = "vigile-backend-nftables"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "vigile-backend-selinux"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "vigile-backend-usbguard"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

@@ -15,6 +15,10 @@ members = [
     "crates/vigile-store",
     "crates/backends/vigile-backend-inventory",
     "crates/backends/vigile-backend-fapolicyd",
+    "crates/backends/vigile-backend-nftables",
+    "crates/backends/vigile-backend-selinux",
+    "crates/backends/vigile-backend-apparmor",
+    "crates/backends/vigile-backend-usbguard",
 ]
 
 # Dependencies adopted per DEC-07 (human green light, 2026-08-22) after
