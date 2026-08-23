@@ -9,6 +9,7 @@
 pub mod approval;
 pub mod audit;
 pub mod auth;
+pub mod elevation;
 pub mod http;
 pub mod routes;
 pub mod state;
@@ -17,6 +18,10 @@ pub mod thresholds;
 pub use approval::{ApprovalDecision, ApprovalRequest, ApprovalScope, ApprovalStatus};
 pub use audit::AuditJournal;
 pub use auth::{AdminRole, TokenAuth};
+pub use elevation::{
+    create_grant, validate_request, ElevationAction, ElevationGrant, ElevationRequest,
+    DEFAULT_MAX_DURATION_SECS, HARD_MAX_DURATION_SECS,
+};
 pub use state::ServerState;
 
 use std::net::{TcpListener, TcpStream};

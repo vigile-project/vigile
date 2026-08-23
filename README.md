@@ -1,83 +1,186 @@
-# Vigile — Plateforme libre de contrôle applicatif Zero Trust pour Linux
+# Vigile — Open-source Zero Trust application control for Linux
 
 > **Nom** : « Vigile » — projet (DEC-01, 2026-08-21). Dépôt officiel :
-> `github.com/vigile-project/vigile` (amendement DEC-01 du 2026-08-22 : le
-> login GitHub « vigile » est un compte personnel inactif ; crates
-> `vigile*` libres sur crates.io). Reste avant médiatisation : recherche de
-> marques (INPI/EUIPO).
+> `github.com/vigile-project/vigile` (login « vigile » = compte personnel
+> inactif ; crates `vigile*` libres sur crates.io). Reste avant
+> médiatisation : recherche de marques (INPI/EUIPO).
 
-## Qu'est-ce que ce dépôt ?
+## What is this?
 
-Dépôt de **cadrage (Phase 0)** d'une plateforme libre d'administration
-centralisée de la sécurité des postes et serveurs Linux : inventaire des
-applications, allowlisting avec refus par défaut, approbations, confinement,
-contrôle USB, télémétrie et audit — dans une logique Zero Trust.
+Vigile is a **free, open-source** application control platform for
+Linux, functionally inspired by the "application allowlisting /
+control" product category — **without copying any code, interface,
+trademark, proprietary protocol or patented feature** from any
+existing product.
 
-**Aucun code d'application n'est encore produit.** Cette phase contient
-exclusivement des documents de conception, un modèle de menace, des ADR et un
-plan de travail. **Aucune affirmation du type « sécurisé », « Zero Trust
-atteint », « production-ready » ou « conforme » ne doit être déduite de la
-présence de ces documents.** Ces qualités ne pourront être revendiquées
-qu'après tests, revue indépendante et validation humaine formelle (critères :
-`docs/ROADMAP.md`, §30 du cahier des charges).
+The platform progressively provides:
+1. Application and executable inventory
+2. Application allowlisting
+3. Default-deny for unapproved applications
+4. Script, interpreter, library and binary control
+5. Legitimate behavior learning
+6. Application confinement
+7. Per-application network control
+8. USB device control
+9. Controlled and time-limited privilege elevation
+10. Temporary or permanent approvals
+11. Centralized multi-site administration
+12. Progressive deployment with automatic rollback
+13. Telemetry, audit and SIEM integration
+14. Offline or heavily segmented operation
+15. Cryptographic verification of policies and updates
 
-## État
+**No claim of being "secure", "Zero Trust achieved", "production-ready"
+or "compliant" may be made without proof, testing, independent review
+and a precise scope definition.**
 
-| Élément           | État                                            |
-|-------------------|-------------------------------------------------|
-| Phase 0 (cadrage) | **Validée le 2026-08-21** |
-| Sprint 1 (bootstrap) | En cours — fondation créée (ossature, licence, CI, schéma `policy/v0`) |
+## Status
 
-## Cartographie des documents
+| Milestone | Description | Tests | Status |
+|---|---|---|---|
+| Phase 0 | Framing (20 docs, 10 ADRs, backlog) | — | ✅ Validated |
+| M1 | Identity: PKI, enrollment, mTLS, clone detection | 67 | ✅ Validated |
+| M2 | Inventory: packages, executables, scripts, journal | 101 | ✅ Validated |
+| M3 | Policy compiler: fapolicyd rules, contradictions, simulation | 122 | ✅ Validated |
+| M4 | Server: HTTP/mTLS, admin API, RBAC, audit journal | 157 | ✅ Validated |
+| M5 | fapolicyd audit mode (Phase 2) | 187 | ✅ Validated |
+| M6 | Executor: IPC, transactions, systemd hardening | 182 | ✅ Validated |
+| M7 | Enforcement, approvals, thresholds, portal (Phase 3) | 205 | ✅ Validated |
+| M8 | Packaging: RPM spec, break-glass recovery | 205 | ✅ Validated |
+| Phase 4 | USBGuard backend (types, rules, approvals) | +4 | ✅ |
+| Phase 5 | AppArmor backend (profiles, aa-status) | +5 | ✅ |
+| Phase 6 | SELinux backend (AVC parsing, aggregation) | +7 | ✅ |
+| Phase 7 | nftables backend (workload identity, rules) | +6 | ✅ |
+| Phase 8 | Controlled elevation (typed actions, time-limited) | +10 | ✅ |
+| Phase 9 | NixOS module + flake | — | ✅ |
+| **Total** | | **237** | |
 
-| Document | Objet |
-|---|---|
-| `docs/PROJECT_CHARTER.md` | Mission, valeurs, gouvernance, licence |
-| `docs/PRODUCT_REQUIREMENTS.md` | Exigences fonctionnelles, personas, MVP |
-| `docs/SECURITY_REQUIREMENTS.md` | Exigences de sécurité vérifiables (SEC-xxx) |
-| `docs/NON_GOALS.md` | Non-objectifs explicites et justifiés |
-| `docs/GLOSSARY.md` | Vocabulaire partagé |
-| `docs/ARCHITECTURE.md` | Composants, flux, topologies |
-| `docs/THREAT_MODEL.md` | Menaces STRIDE, arbres d'attaque, limites |
-| `docs/TRUST_BOUNDARIES.md` | Frontières de confiance et vérifications |
-| `docs/DISTRIBUTION_COMPATIBILITY.md` | Matrice de capacités par distribution |
-| `docs/POLICY_MODEL.md` | Schéma des politiques, compilation, signature |
-| `docs/AGENT_PROTOCOL.md` | Enrôlement, mTLS, messagerie agent, IPC local |
-| `docs/KEY_MANAGEMENT.md` | Hiérarchie de clés, rotation, compromission |
-| `docs/UPDATE_SECURITY.md` | TUF, paquets signés, SBOM, anti-rollback |
-| `docs/FAILURE_MODES.md` | Comportements de défaillance (fail-closed) |
-| `docs/RECOVERY_AND_BREAK_GLASS.md` | Break-glass, PRA, récupération hors ligne |
-| `docs/TEST_STRATEGY.md` | Stratégie de tests et budgets de performance |
-| `docs/SUPPLY_CHAIN_SECURITY.md` | Chaîne logicielle, CI, reproductibilité |
-| `docs/ROADMAP.md` | Phases 0→11 avec critères de sortie |
-| `docs/CONTRIBUTING.md` | Contribution, revue, usage de l'IA |
-| `docs/SECURITY.md` | Signalement de vulnérabilités |
-| `docs/spikes/` | Rapports de spikes du sprint 1 (JCS, PKI/TLS, fapolicyd, TUF) |
-| `adr/ADR-0001…0010` | Décisions d'architecture proposées |
-| `planning/REPOSITORY_LAYOUT.md` | Arborescence cible du dépôt |
-| `planning/BACKLOG.md` | Backlog priorisé, issues atomiques, dépendances |
-| `planning/RISKS.md` | Risques, dont bloquants |
-| `planning/DECISIONS_NEEDED.md` | Décisions humaines nécessaires |
-| `planning/SPRINT_1.md` | Proposition de sprint 1 |
-| `planning/SECURITY_REVIEW_CHECKLIST.md` | Checklist de revue de sécurité |
+## Quick start (developer)
 
-## Règles de lecture
+```bash
+# Clone and build
+git clone https://github.com/vigile-project/vigile.git
+cd vigile/rust
+cargo build --workspace
+cargo test --workspace
 
-- Tout élément marqué **NON VÉRIFIÉ** doit être confirmé dans une source
-  primaire avant d'être utilisé comme base d'une garantie (voir
-  `docs/GLOSSARY.md` et la méthode §28 du cahier des charges).
-- Chaque document indique : statut, décisions ouvertes, hypothèses, ADR liés,
-  critères d'acceptation et risques connus.
-- Les ADR sont au statut « Accepté » depuis la validation humaine de la
-  Phase 0 (2026-08-21).
+# Compile a policy and validate with fapolicyd
+cargo run --example compile-policy -- ../examples/policy-workstation-firefox.v0.json /tmp/out
+cat /tmp/out/*.rules          # generated fapolicyd rules
+fapolicyd-cli --check-rules /tmp/out/*.rules  # native validation
 
-## Licence du projet
+# Run the agent inventory
+cargo run --release -p vigile-agent -- inventory
+```
 
-Décision DEC-02 (2026-08-21) : **AGPL-3.0-or-later** pour le code
-(fichier `LICENSE`), **CC BY-SA 4.0** pour la documentation
-(`docs/LICENSE-docs.txt`).
+## Architecture
 
-Décisions associées prises le même jour : nom « Vigile » (DEC-01),
-forge GitHub (DEC-03), anglais public / français interne (DEC-15 —
-traduction progressive des documents Phase 0). Journal complet :
-`planning/DECISIONS_NEEDED.md`.
+```text
+┌─────────────────────────────────────────────────────┐
+│                  Control Plane                       │
+│  ┌─────────────┐  ┌──────────┐  ┌───────────────┐  │
+│  │ API admin   │  │ Policy   │  │ Audit journal │  │
+│  │ (RBAC, MFA) │  │ compiler │  │ (SHA-256)     │  │
+│  └──────┬──────┘  └────┬─────┘  └───────────────┘  │
+│         │               │                            │
+│  ┌──────┴───────────────┴──────┐  ┌──────────────┐  │
+│  │    Agent API (HTTPS/mTLS)  │  │  Approvals   │  │
+│  └─────────────┬──────────────┘  │  Thresholds  │  │
+│                │                  └──────────────┘  │
+└────────────────┼────────────────────────────────────┘
+                 │
+┌────────────────┼────────────────────────────────────┐
+│  Managed machine│                                   │
+│  ┌──────────────┴──────────┐                        │
+│  │ vigile-agent (no priv) │                        │
+│  │  - inventory            │                        │
+│  │  - sync (pull)          │                        │
+│  │  - event collection     │                        │
+│  └──────────┬──────────────┘                        │
+│             │ IPC (SO_PEERCRED)                     │
+│  ┌──────────┴──────────────┐                        │
+│  │ vigile-executor (root)  │                        │
+│  │  - closed catalog       │                        │
+│  │  - transactions (LKG)   │                        │
+│  │  - O_NOFOLLOW, fsync    │                        │
+│  └──────────┬──────────────┘                        │
+│             │                                       │
+│  ┌──────────┴──────────────┐                        │
+│  │ Security backends       │                        │
+│  │  fapolicyd  SELinux     │                        │
+│  │  AppArmor   nftables    │                        │
+│  │  USBGuard               │                        │
+│  └─────────────────────────┘                        │
+└─────────────────────────────────────────────────────┘
+```
+
+## Security properties
+
+| Property | Mechanism | Reference |
+|---|---|---|
+| Deny by default | Terminal `deny perm=execute all : all` | ADR-0010 |
+| Signed policies | Ed25519, canonical JSON (RFC 8785) | ADR-0004 |
+| mTLS agent-server | rustls, ring backend | ADR-0003 |
+| Anti-replay | Server nonce + monotonic sequence | SEC-106 |
+| Clone detection | Machine fingerprint + sticky quarantine | SEC-107 |
+| Append-only audit | SHA-256 hash chain + DB trigger | SEC-305 |
+| Self-lockout prevention | C8: protected_services required | SEC-801 |
+| Auto-stop thresholds | Denials, health, rollbacks | SEC-803 |
+| Local expiration | SEC-303: works without server | SEC-303 |
+| No shell in executor | Closed action catalog (8 actions) | ADR-0002 |
+| O_NOFOLLOW | Symlinks never followed | SEC-402 |
+
+## Repository layout
+
+```
+vigile/
+├── README.md, LICENSE (AGPL-3.0-or-later)
+├── flake.nix                    # Nix flake (module + package)
+├── docs/                        # 20+ documents (architecture, threat model, etc.)
+├── adr/                         # 10 Architecture Decision Records
+├── planning/                    # Backlog, sprints, risks, decisions
+├── web/                         # Admin portal (single-file HTML)
+├── examples/                    # Example policies
+├── tests/
+│   ├── vectors/                 # Policy test vectors
+│   └── vm/                      # Fedora VM lab harness
+├── packaging/
+│   ├── rpm/vigile.spec          # RPM package
+│   ├── systemd/                 # Hardened units + audit
+│   ├── nix/vigile-module.nix    # NixOS module
+│   └── recovery/                # Break-glass script
+└── rust/                        # Rust workspace
+    └── crates/
+        ├── vigile-pki           # PKI, enrollment, rotation, anti-replay
+        ├── vigile-policy        # Schema, compiler, simulation
+        ├── vigile-server        # HTTP server, admin API, audit
+        ├── vigile-executor      # Privileged executor (transactions)
+        ├── vigile-ipc           # Local IPC protocol
+        ├── vigile-agent         # Unprivileged agent binary
+        ├── vigile-store         # PostgreSQL persistence
+        ├── vigile-signer        # Isolated signing service
+        ├── vigile-client        # Admin CLI
+        └── backends/
+            ├── vigile-backend-inventory   # Platform, packages, executables
+            ├── vigile-backend-fapolicyd   # fapolicyd validation/deploy
+            ├── vigile-backend-usbguard    # USB device control
+            ├── vigile-backend-apparmor    # AppArmor profiles
+            ├── vigile-backend-selinux     # SELinux AVC/module
+            └── vigile-backend-nftables    # Network rules per workload
+```
+
+## License
+
+- Code: **AGPL-3.0-or-later** (`LICENSE`)
+- Documentation: **CC BY-SA 4.0** (`docs/LICENSE-docs.txt`)
+
+## Contact
+
+- Security: see `docs/SECURITY.md` (PGP key included)
+- General: GitHub issues at `github.com/vigile-project/vigile`
+
+---
+
+**Warning**: This software is in alpha stage (v0.1.0). It has NOT been
+independently audited, pentested, or certified for production use.
+See `docs/ROADMAP.md` Phase 10 for the qualification criteria.

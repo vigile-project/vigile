@@ -71,6 +71,10 @@ détectée + 7 tests). 157 tests workspace verts, clippy 0.
 > (lsusb + règles + approbations), AppArmor (profils + aa-status),
 > SELinux (AVC parsing + agrégation + stub module), nftables
 > (workload identity + règle réseau + génération). 227 tests verts.
+> **Phases 8-9 closes** (sprint 11, 2026-08-23) : élévation contrôlée
+> (5 actions typées, expiration locale, one-use, plafond 4h) + module
+> NixOS (flake, unités systemd durcies, stratégie coexistence ADR-0008)
+> + README consolidé. 237 tests verts.
 
 > **Avancement (2026-08-21, soir)** : M0 **complet** — ISS-001/002/003
 > faites ; spikes ISS-006 (PKI/TLS, GO conditionnel), ISS-007 (JCS, GO —
