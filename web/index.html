@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Vigile</title>
+    <style>
+        :root {
+            --bg: #1a1a2e; --surface: #16213e; --text: #e4e6eb;
+            --accent: #0f3460; --border: #2a2a4a; --ok: #22c55e;
+            --warn: #f59e0b; --err: #ef4444;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: var(--bg); color: var(--text);
+            display: flex; min-height: 100vh;
+        }
+        nav {
+            width: 220px; background: var(--surface); padding: 1rem;
+            border-right: 1px solid var(--border);
+        }
+        nav h1 { font-size: 1.2rem; margin-bottom: 1.5rem; color: var(--accent); }
+        nav a {
+            display: block; padding: 0.5rem 0.75rem; margin-bottom: 0.25rem;
+            color: var(--text); text-decoration: none; border-radius: 4px;
+        }
+        nav a:hover, nav a.active { background: var(--accent); }
+        main { flex: 1; padding: 2rem; max-width: 900px; }
+        h2 { margin-bottom: 1rem; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
+        th { color: var(--accent); font-weight: 600; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 0.8rem; }
+        .badge.ok { background: var(--ok); color: #000; }
+        .badge.warn { background: var(--warn); color: #000; }
+        .badge.err { background: var(--err); color: #fff; }
+        #login {
+            max-width: 360px; margin: 4rem auto; padding: 2rem;
+            background: var(--surface); border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+        #login input {
+            width: 100%; padding: 0.5rem; margin-bottom: 1rem;
+            background: var(--bg); color: var(--text);
+            border: 1px solid var(--border); border-radius: 4px;
+        }
+        #login button, .btn {
+            padding: 0.5rem 1rem; background: var(--accent); color: var(--text);
+            border: none; border-radius: 4px; cursor: pointer;
+        }
+        .hidden { display: none !important; }
+        .error { color: var(--err); margin-top: 0.5rem; }
+        pre {
+            background: var(--surface); padding: 1rem; border-radius: 4px;
+            overflow-x: auto; font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <div id="login">
+        <h1>🔐 Vigile</h1>
+        <input type="password" id="token" placeholder="Admin token" autocomplete="off">
+        <button onclick="login()">Sign in</button>
+        <div class="error hidden" id="login-error">Invalid token</div>
+    </div>
+
+    <nav id="nav" class="hidden">
+        <h1>🔐 Vigile</h1>
+        <a href="#" onclick="showPage('status')" id="nav-status">Status</a>
+        <a href="#" onclick="showPage('audit')" id="nav-audit">Audit log</a>
+        <a href="#" onclick="showPage('about')" id="nav-about">About</a>
+    </nav>
+
+    <main id="main" class="hidden">
+        <div id="page-status">
+            <h2>Server status</h2>
+            <div id="status-content"><p>Loading…</p></div>
+        </div>
+        <div id="page-audit" class="hidden">
+            <h2>Audit journal</h2>
+            <button class="btn" onclick="verifyChain()">Verify chain integrity</button>
+            <div id="verify-result" style="margin:1rem 0"></div>
+            <div id="audit-content"><p>Loading…</p></div>
+        </div>
+        <div id="page-about" class="hidden">
+            <h2>About Vigile</h2>
+            <p>Open-source Zero Trust application control for Linux.</p>
+            <p><a href="https://github.com/vigile-project/vigile" style="color:var(--accent)">GitHub</a></p>
+            <pre>vigile-agent    — unprivileged agent (inventory, sync)
+vigile-executor — privileged executor (policy application)
+vigile-server   — control plane (API, audit, approvals)</pre>
+        </div>
+    </main>
+
+    <script>
+        // Minimal admin portal (ISS-032). No CDN, no external JS.
+        // Talks to /admin/v1/* with a bearer token.
+        // Full TypeScript/React portal arrives with DEC-06.
+
+        let TOKEN = '';
+        const BASE = window.location.origin;
+
+        async function login() {
+            const token = document.getElementById('token').value.trim();
+            if (!token) return;
+            try {
+                const res = await fetch(BASE + '/admin/v1/status', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                if (!res.ok) {
+                    document.getElementById('login-error').classList.remove('hidden');
+                    return;
+                }
+                TOKEN = token;
+                sessionStorage.setItem('vigile-token', token);
+                document.getElementById('login').classList.add('hidden');
+                document.getElementById('nav').classList.remove('hidden');
+                document.getElementById('main').classList.remove('hidden');
+                loadStatus();
+            } catch (e) {
+                document.getElementById('login-error').textContent = 'Connection failed: ' + e.message;
+                document.getElementById('login-error').classList.remove('hidden');
+            }
+        }
+
+        function showPage(name) {
+            for (const p of ['status', 'audit', 'about']) {
+                document.getElementById('page-' + p).classList.toggle('hidden', p !== name);
+                document.getElementById('nav-' + p).classList.toggle('active', p === name);
+            }
+            if (name === 'status') loadStatus();
+            if (name === 'audit') loadAudit();
+        }
+
+        async function api(path) {
+            const res = await fetch(BASE + path, {
+                headers: { 'Authorization': 'Bearer ' + TOKEN }
+            });
+            if (!res.ok) throw new Error('API ' + res.status);
+            return res.json();
+        }
+
+        async function loadStatus() {
+            try {
+                const data = await api('/admin/v1/status');
+                document.getElementById('status-content').innerHTML = `
+                    <table>
+                        <tr><th>Status</th><td><span class="badge ok">${data.status}</span></td></tr>
+                        <tr><th>Audit entries</th><td>${data.audit_entries}</td></tr>
+                        <tr><th>Chain head</th><td><code>${(data.audit_head || '').slice(0, 16)}…</code></td></tr>
+                    </table>`;
+            } catch (e) {
+                document.getElementById('status-content').innerHTML = '<p class="error">' + e.message + '</p>';
+            }
+        }
+
+        async function loadAudit() {
+            try {
+                const data = await api('/admin/v1/audit');
+                const rows = (data.entries || []).slice(-50).reverse().map(e => `
+                    <tr>
+                        <td>${e.seq}</td>
+                        <td>${new Date(e.at_unix * 1000).toISOString().slice(0, 19)}</td>
+                        <td>${e.actor}</td>
+                        <td>${e.action}</td>
+                        <td>${e.target}</td>
+                        <td>${e.result}</td>
+                    </tr>`).join('');
+                document.getElementById('audit-content').innerHTML = `
+                    <table>
+                        <tr><th>#</th><th>Time</th><th>Actor</th><th>Action</th><th>Target</th><th>Result</th></tr>
+                        ${rows || '<tr><td colspan="6">No entries</td></tr>'}
+                    </table>`;
+            } catch (e) {
+                document.getElementById('audit-content').innerHTML = '<p class="error">' + e.message + '</p>';
+            }
+        }
+
+        async function verifyChain() {
+            try {
+                const data = await api('/admin/v1/audit/verify');
+                const el = document.getElementById('verify-result');
+                if (data.valid) {
+                    el.innerHTML = '<span class="badge ok">✓ Valid — ' + data.verified_entries + ' entries verified</span>';
+                } else {
+                    el.innerHTML = '<span class="badge err">✗ BROKEN at #' + data.broken_at_seq + ': ' + data.detail + '</span>';
+                }
+            } catch (e) {
+                document.getElementById('verify-result').innerHTML = '<span class="badge err">' + e.message + '</span>';
+            }
+        }
+
+        // Restore session.
+        const saved = sessionStorage.getItem('vigile-token');
+        if (saved) {
+            document.getElementById('token').value = saved;
+            login();
+        }
+
+        document.getElementById('token').addEventListener('keypress', e => {
+            if (e.key === 'Enter') login();
+        });
+    </script>
+</body>
+</html>

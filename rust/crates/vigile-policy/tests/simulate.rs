@@ -97,6 +97,10 @@ fn t26_03_enforce_strategy_produces_blocking_decisions() {
         strategy: vigile_policy::model::RolloutStrategy::Canary,
         rings: vec![],
     });
+    // C8 requires protected services for enforcement strategies.
+    p.safety = Some(vigile_policy::model::Safety {
+        protected_services: vec!["vigile-agent.service".into()],
+    });
     let compiled = compile(&p).expect("compile");
     let result = simulate(
         &compiled,

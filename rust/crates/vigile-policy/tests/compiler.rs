@@ -80,9 +80,13 @@ fn t23_02_audit_mode_by_default_and_enforce_by_strategy() {
         .content
         .contains("deny_audit perm=execute all : all"));
 
+    // Enforcement mode requires safety.protected_services (C8, ISS-042).
     p.rollout = Some(vigile_policy::model::Rollout {
         strategy: vigile_policy::model::RolloutStrategy::Canary,
         rings: vec![],
+    });
+    p.safety = Some(vigile_policy::model::Safety {
+        protected_services: vec!["vigile-agent.service".into()],
     });
     let c = compile(&p).expect("compile");
     assert!(!c.manifest.audit_mode);
@@ -218,6 +222,71 @@ fn t24_c7_custom_identity_without_hash() {
         "execution": { "decision": "allow" }
     }));
     assert!(check_contradictions(&ok).is_ok());
+}
+
+// ---------------------------------------------------------------- ISS-042
+
+#[test]
+fn t42_c8_enforcement_without_protected_services_rejected() {
+    // Enforcement strategy without safety.protected_services → C8.
+    let e = contradiction(json!({
+        "rollout": { "strategy": "canary" }
+    }));
+    assert_eq!(e.code, "C8");
+    assert!(e.detail.contains("self-lockout"), "{}", e.detail);
+
+    // Audit-only strategy is fine without protected services.
+    let ok = policy(json!({}));
+    assert!(check_contradictions(&ok).is_ok());
+}
+
+#[test]
+fn t42_c8_enforcement_with_protected_services_accepted() {
+    let ok = policy(json!({
+        "rollout": { "strategy": "canary" },
+        "safety": { "protected_services": ["vigile-agent.service", "sshd.service"] }
+    }));
+    assert!(check_contradictions(&ok).is_ok());
+}
+
+#[test]
+fn t42_enforcement_mode_produces_blocking_rules() {
+    let p = policy(json!({
+        "rollout": { "strategy": "canary" },
+        "safety": { "protected_services": ["vigile-agent.service"] }
+    }));
+    let c = compile(&p).expect("compile");
+    assert!(!c.manifest.audit_mode);
+    // Terminal rule is `deny` (blocking), not `deny_audit`.
+    let terminal = c.artifacts[0]
+        .content
+        .lines()
+        .last()
+        .expect("has terminal rule");
+    assert!(
+        terminal.starts_with("deny perm=execute"),
+        "expected blocking deny, got: {terminal}"
+    );
+    assert!(
+        !terminal.contains("_audit"),
+        "enforcement mode must NOT produce _audit suffix"
+    );
+}
+
+#[test]
+fn t42_audit_mode_produces_audit_rules() {
+    let p = policy(json!({}));
+    let c = compile(&p).expect("compile");
+    assert!(c.manifest.audit_mode);
+    let terminal = c.artifacts[0]
+        .content
+        .lines()
+        .last()
+        .expect("has terminal rule");
+    assert!(
+        terminal.starts_with("deny_audit perm=execute"),
+        "expected audit rule, got: {terminal}"
+    );
 }
 
 // ---------------------------------------------------------------- ISS-025

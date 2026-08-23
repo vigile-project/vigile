@@ -186,6 +186,27 @@ pub fn check_contradictions(policy: &Policy) -> Result<(), CompileError> {
         }
     }
 
+    // C8 — enforcement mode (ISS-042): a policy with an enforcement
+    // rollout strategy MUST declare protected services. The terminal
+    // `deny perm=execute all : all` would block EVERYTHING not
+    // explicitly allowed — without a protected list, this risks
+    // self-lockout (§12 cahier des charges).
+    if !policy.audit_mode() {
+        let has_protected = policy
+            .safety
+            .as_ref()
+            .map(|s| !s.protected_services.is_empty())
+            .unwrap_or(false);
+        if !has_protected {
+            return err(
+                "C8",
+                "enforcement rollout strategy requires safety.protected_services \
+                 to be non-empty (self-lockout prevention, SEC-801)"
+                    .into(),
+            );
+        }
+    }
+
     Ok(())
 }
 
