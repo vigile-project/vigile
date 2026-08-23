@@ -24,8 +24,11 @@ n'est pas « done ».
 > domaine, événements append-**par trigger**, `PgStore` jumeau persistant
 > du registre, inventaire machines — **8/8 tests sur PostgreSQL 17 réel**
 > via podman rootless). **M1 complet** : 59 tests workspace (clippy 0) +
-> 8 tests PostgreSQL. Prochain jalon : M2 (inventaire applicatif,
-> ISS-017..022).
+> 8 tests PostgreSQL. **M2 ouvert (sprint 3)** : ISS-017 close
+> (os-release + matrice de capacités embarquée, 9 tests), ISS-018 close
+> (adaptateur rpm, 4 tests), ISS-020 close (ELF + shebang + `env -S`,
+> 6 tests). 78 tests workspace verts. Restent : ISS-019 (exécutables +
+> SHA-256), ISS-021 (journald), ISS-022 (envoi différé).
 
 > **Avancement (2026-08-21, soir)** : M0 **complet** — ISS-001/002/003
 > faites ; spikes ISS-006 (PKI/TLS, GO conditionnel), ISS-007 (JCS, GO —
