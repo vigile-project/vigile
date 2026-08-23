@@ -45,8 +45,11 @@ détectée + 7 tests). 157 tests workspace verts, clippy 0.
 > SO_PEERCRED + validation de chemins/hash + 13 tests dont 8
 > négatifs). 170 tests workspace verts, clippy 0 (unsafe_code =
 > deny avec allow local unique pour SO_PEERCRED, documenté et
-> audité). Restent M6 : ISS-039..041 (actions, transaction,
-> systemd). Prochain jalon : **M5** (phase 2 — fapolicyd audit).
+> audité). ISS-039/040 closes
+> (exécuteur transactionnel : stage O_NOFOLLOW + commit atomique +
+> rollback LKG — 12 tests dont cycle complet et attaque par symlink).
+> 182 tests workspace verts, clippy 0. Reste M6 : ISS-041 (systemd
+> durci). Prochain jalon : **M5** (phase 2 — fapolicyd audit).
 
 > **Avancement (2026-08-21, soir)** : M0 **complet** — ISS-001/002/003
 > faites ; spikes ISS-006 (PKI/TLS, GO conditionnel), ISS-007 (JCS, GO —

@@ -1848,6 +1848,12 @@ version = "0.1.0"
 [[package]]
 name = "vigile-executor"
 version = "0.1.0"
+dependencies = [
+ "libc",
+ "serde",
+ "serde_json",
+ "vigile-ipc",
+]
 
 [[package]]
 name = "vigile-ipc"

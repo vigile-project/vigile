@@ -1,14 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Vigile executor — minimal privileged component (ADR-0002).
-//!
-//! Skeleton only (sprint 1, ISS-001). This binary must NEVER gain generic
-//! capabilities: the action catalogue is closed and versioned
-//! (`vigile-ipc`, docs/AGENT_PROTOCOL.md §6). No shell, no arbitrary paths,
-//! no unsigned configuration — enforced by review and tests from ISS-038.
+//! Vigile executor binary — the privileged component that applies
+//! artifacts via the IPC protocol.
 
 fn main() {
     println!(
-        "vigile-executor {} (skeleton — performs nothing, holds no privileges)",
+        "vigile-executor {} (transactional executor — see lib.rs)",
         env!("CARGO_PKG_VERSION")
     );
+    println!("The binary entry point (socket listener) arrives with ISS-041.");
 }

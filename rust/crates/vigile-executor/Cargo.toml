@@ -3,7 +3,13 @@ name = "vigile-executor"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Vigile minimal privileged executor (skeleton)"
+description = "Vigile minimal privileged executor: transactional artifact application"
 
 [lints]
 workspace = true
+
+[dependencies]
+vigile-ipc = { path = "../vigile-ipc" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+libc = "0.2"
