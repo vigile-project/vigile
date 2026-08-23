@@ -19,9 +19,18 @@ pub const SCHEMA_VERSION: &str = "policy/v0";
 pub const SCHEMA_JSON: &str = include_str!("../schema/policy-v0.schema.json");
 
 pub mod canonical;
+pub mod compiler;
+pub mod model;
+pub mod simulate;
 pub mod validate;
 
 pub use canonical::{canonical_json, CanonicalError};
+pub use compiler::{
+    check_contradictions, compile, Artifact, ArtifactHash, CompileError, Compiled, Manifest,
+    NonApplicable, COMPILER_VERSION,
+};
+pub use model::*;
+pub use simulate::{policy_diff, simulate, SimDecision, SimEvent, SimResult};
 pub use validate::{parse_and_validate, PolicyError, PolicyValidator};
 
 #[cfg(test)]

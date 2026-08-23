@@ -32,8 +32,12 @@ n'est pas « done ».
 > priorités, diff incrémental + backoff à jitter) ; **M2 complet** :
 > inventaire réel validé dans la VM Fedora 44 (`vigile-agent inventory`,
 > 431/432 paquets signés rpm 6). 101 tests workspace verts, clippy 0.
-> Prochain jalon : **M3** (compilateur de politiques, ISS-023..026) —
-> revue humaine de fin de sprint attendue.
+> **M3 complet** (sprint 4, 2026-08-23) : ISS-023..026 closes —
+> compilateur déterministe (règles validées par fapolicyd-cli natif dans
+> la VM), contradictions C1..C7, non-applicables déclarés, simulateur
+> first-match + diff. 122 tests workspace verts, clippy 0. Prochain
+> jalon : **M4** (serveur HTTP + API, ISS-030..034) — revue humaine
+> attendue.
 
 > **Avancement (2026-08-21, soir)** : M0 **complet** — ISS-001/002/003
 > faites ; spikes ISS-006 (PKI/TLS, GO conditionnel), ISS-007 (JCS, GO —

@@ -36,7 +36,7 @@ ed25519-dalek = { version = "2", features = ["pkcs8"] }
 # mixing with 2.x silently breaks CrlBuilder bounds (see prototype report).
 signature = "3"
 # Already transitively required by rcgen; used for certificate validity windows.
-time = "0.3"
+time = { version = "0.3", features = ["parsing"] }
 # Sync PostgreSQL client (no async runtime yet — ISS-030 will decide the
 # final shape); evaluated 2026-08-22 for ISS-016 (rust/DEPENDENCIES.md).
 postgres = { version = "0.19", features = ["with-serde_json-1"] }
