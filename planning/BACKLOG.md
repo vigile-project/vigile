@@ -60,7 +60,11 @@ détectée + 7 tests). 157 tests workspace verts, clippy 0.
 > d'approbation : 4 scopes, expiration locale SEC-303, validation —
 > 7 tests), **ISS-043 close** (seuils d'arrêt automatique : déniels,
 > santé, rollbacks — 7 tests). 201 tests workspace verts, clippy 0.
-> Restent : ISS-042 (enforcement), ISS-032 (portail).
+> **ISS-042 close** (C8 : enforcement sans protected_services = erreur
+> self-lockout ; mode enforcement produit deny), **ISS-032 close**
+> (portail web monofichier : login + statut + audit + vérification).
+> **M7 complet.** 205 tests workspace verts, clippy 0. Le MVP produit
+> est complet.
 
 > **Avancement (2026-08-21, soir)** : M0 **complet** — ISS-001/002/003
 > faites ; spikes ISS-006 (PKI/TLS, GO conditionnel), ISS-007 (JCS, GO —
