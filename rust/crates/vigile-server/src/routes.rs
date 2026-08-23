@@ -1,16 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Agent API routes (ISS-030): `/agent/v1/*` over mTLS.
+//! API routes (ISS-030/031/033): `/agent/v1/*` (mTLS) and `/admin/v1/*`
+//! (bearer token + RBAC).
 //!
-//! Endpoints:
+//! Agent endpoints:
 //! - POST /agent/v1/enroll — enrollment (token + CSR + fingerprint)
 //! - POST /agent/v1/heartbeat — signed envelope with status
 //! - GET  /agent/v1/policy — current compiled policy for this agent
 //!
-//! All endpoints (except enroll, which is pre-mTLS) verify the client
-//! certificate against the CA. The enrollment endpoint itself uses
-//! TLS with the server cert but accepts any client (the token is the
-//! proof).
+//! Admin endpoints (ISS-031):
+//! - GET  /admin/v1/status — server health (viewer)
+//! - GET  /admin/v1/audit — audit journal entries (viewer)
+//! - POST /admin/v1/enrollment-tokens — issue a token (admin)
+//! - GET  /admin/v1/audit/verify — verify chain integrity (viewer)
 
+use crate::auth::{bearer_from_headers, AdminRole, TokenAuth};
 use crate::http::{write_json, Request};
 use crate::state::ServerState;
 use std::net::TcpStream;
@@ -24,6 +27,11 @@ pub fn route(
     state: &mut ServerState,
     agent_id: Option<&str>,
 ) -> std::io::Result<()> {
+    // Admin routes.
+    if request.path.starts_with("/admin/v1/") {
+        return route_admin(stream, request, state);
+    }
+
     match (request.method.as_str(), request.path.as_str()) {
         ("POST", "/agent/v1/enroll") => handle_enroll(stream, request, state),
         ("POST", "/agent/v1/heartbeat") => {
@@ -41,6 +49,198 @@ pub fn route(
         (method, path) => {
             let body = format!("{{\"error\":\"not found: {method} {path}\"}}");
             write_json(stream, 404, "Not Found", &body)
+        }
+    }
+}
+
+// ------------------------------------------------------------------
+// Admin routes (ISS-031)
+// ------------------------------------------------------------------
+
+fn route_admin(
+    stream: &mut TcpStream,
+    request: &Request,
+    state: &mut ServerState,
+) -> std::io::Result<()> {
+    // All admin routes require a valid bearer token.
+    let bearer = bearer_from_headers(&request.headers);
+    let Some(bearer) = bearer else {
+        return write_json(
+            stream,
+            401,
+            "Unauthorized",
+            "{\"error\":\"Authorization header required\"}",
+        );
+    };
+    let Some(role) = state.admin_auth.validate(&bearer) else {
+        return write_json(stream, 401, "Unauthorized", "{\"error\":\"invalid token\"}");
+    };
+
+    // Identify the actor for the audit log (first 8 chars of the token).
+    let actor = format!(
+        "admin:{}",
+        &bearer.strip_prefix("Bearer ").unwrap_or(&bearer)[..8.min(bearer.len())]
+    );
+
+    match (request.method.as_str(), request.path.as_str()) {
+        ("GET", "/admin/v1/status") => {
+            if !TokenAuth::authorize(role, AdminRole::Viewer) {
+                return write_json(
+                    stream,
+                    403,
+                    "Forbidden",
+                    "{\"error\":\"insufficient role\"}",
+                );
+            }
+            handle_admin_status(stream, state)
+        }
+        ("GET", "/admin/v1/audit") => {
+            if !TokenAuth::authorize(role, AdminRole::Viewer) {
+                return write_json(
+                    stream,
+                    403,
+                    "Forbidden",
+                    "{\"error\":\"insufficient role\"}",
+                );
+            }
+            handle_admin_audit(stream, state)
+        }
+        ("GET", "/admin/v1/audit/verify") => {
+            if !TokenAuth::authorize(role, AdminRole::Viewer) {
+                return write_json(
+                    stream,
+                    403,
+                    "Forbidden",
+                    "{\"error\":\"insufficient role\"}",
+                );
+            }
+            handle_admin_audit_verify(stream, state, &actor)
+        }
+        ("POST", "/admin/v1/enrollment-tokens") => {
+            if !TokenAuth::authorize(role, AdminRole::Admin) {
+                state
+                    .audit
+                    .append(&actor, "enrollment-token.denied", "role-check", "denied");
+                return write_json(
+                    stream,
+                    403,
+                    "Forbidden",
+                    "{\"error\":\"admin role required\"}",
+                );
+            }
+            handle_admin_issue_token(stream, request, state, &actor)
+        }
+        (method, path) => {
+            let body = format!("{{\"error\":\"not found: {method} {path}\"}}");
+            write_json(stream, 404, "Not Found", &body)
+        }
+    }
+}
+
+fn handle_admin_status(stream: &mut TcpStream, state: &mut ServerState) -> std::io::Result<()> {
+    let response = serde_json::json!({
+        "status": "ok",
+        "audit_entries": state.audit.entries().len(),
+        "audit_head": state.audit.head_hash(),
+    });
+    let body = serde_json::to_string(&response).unwrap_or_default();
+    write_json(stream, 200, "OK", &body)
+}
+
+fn handle_admin_audit(stream: &mut TcpStream, state: &mut ServerState) -> std::io::Result<()> {
+    let entries: Vec<crate::audit::AuditEntry> = state.audit.entries().to_vec();
+    let response = serde_json::json!({
+        "count": entries.len(),
+        "head_hash": state.audit.head_hash(),
+        "entries": entries,
+    });
+    let body = serde_json::to_string(&response).unwrap_or_default();
+    write_json(stream, 200, "OK", &body)
+}
+
+fn handle_admin_audit_verify(
+    stream: &mut TcpStream,
+    state: &mut ServerState,
+    actor: &str,
+) -> std::io::Result<()> {
+    match state.audit.verify_chain() {
+        Ok(count) => {
+            state
+                .audit
+                .append(actor, "audit.verified", "audit-journal", "ok");
+            let response = serde_json::json!({
+                "valid": true,
+                "verified_entries": count,
+            });
+            let body = serde_json::to_string(&response).unwrap_or_default();
+            write_json(stream, 200, "OK", &body)
+        }
+        Err((seq, detail)) => {
+            state.audit.append(
+                actor,
+                "audit.verification-failed",
+                "audit-journal",
+                &format!("error:seq-{seq}"),
+            );
+            let response = serde_json::json!({
+                "valid": false,
+                "broken_at_seq": seq,
+                "detail": detail,
+            });
+            let body = serde_json::to_string(&response).unwrap_or_default();
+            write_json(stream, 200, "OK", &body)
+        }
+    }
+}
+
+fn handle_admin_issue_token(
+    stream: &mut TcpStream,
+    request: &Request,
+    state: &mut ServerState,
+    actor: &str,
+) -> std::io::Result<()> {
+    // Parse optional TTL from the body.
+    #[derive(serde::Deserialize)]
+    struct TokenRequest {
+        ttl_secs: Option<u64>,
+        group: Option<String>,
+    }
+    let token_req: TokenRequest = match serde_json::from_slice(&request.body) {
+        Ok(r) => r,
+        Err(_) => TokenRequest {
+            ttl_secs: None,
+            group: None,
+        },
+    };
+
+    let ttl = token_req.ttl_secs.unwrap_or(3600).min(24 * 3600);
+    let tenant = "default";
+
+    match state
+        .enrollment_issuer
+        .issue(tenant, token_req.group, ttl, SystemTime::now())
+    {
+        Ok(token) => {
+            state
+                .audit
+                .append(actor, "enrollment-token.issued", tenant, "ok");
+            let response = serde_json::json!({
+                "token": token,
+                "ttl_secs": ttl,
+                "tenant": tenant,
+            });
+            let body = serde_json::to_string(&response).unwrap_or_default();
+            write_json(stream, 201, "Created", &body)
+        }
+        Err(e) => {
+            state.audit.append(
+                actor,
+                "enrollment-token.failed",
+                tenant,
+                &format!("error:{e}"),
+            );
+            let body = format!("{{\"error\":\"{e}\"}}");
+            write_json(stream, 500, "Internal Server Error", &body)
         }
     }
 }
