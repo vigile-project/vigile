@@ -1831,6 +1831,11 @@ dependencies = [
 [[package]]
 name = "vigile-backend-fapolicyd"
 version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "vigile-backend-inventory",
+]
 
 [[package]]
 name = "vigile-backend-inventory"
@@ -1852,6 +1857,7 @@ dependencies = [
  "libc",
  "serde",
  "serde_json",
+ "vigile-backend-fapolicyd",
  "vigile-ipc",
 ]
 

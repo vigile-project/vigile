@@ -51,7 +51,13 @@ détectée + 7 tests). 157 tests workspace verts, clippy 0.
 > 182 tests workspace verts, clippy 0. **ISS-041 close** (unités
 > systemd durcies : agent zéro capability + exécuteur AF_UNIX
 > uniquement + audit HARDENING.md + systemd-analyze verify = OK).
-> **M6 complet**. Prochain jalon : **M5** (phase 2 — fapolicyd audit).
+> **M6 complet**. **M5 complet** (sprint 7, 2026-08-23) : ISS-035 close (backend
+> fapolicyd : validation native fapolicyd-cli + déploiement +
+> rechargement, câblé dans l'exécuteur — **règles validées dans la
+> VM Fedora 44**), ISS-036 close (collecte des refus : parsing
+> journald + corrélation inventaire). 187 tests workspace verts,
+> clippy 0. **M5-M6 complets.** Prochain jalon : **M7** (phase 3 —
+> enforcement + approbations) ou **M8** (portail web).
 
 > **Avancement (2026-08-21, soir)** : M0 **complet** — ISS-001/002/003
 > faites ; spikes ISS-006 (PKI/TLS, GO conditionnel), ISS-007 (JCS, GO —

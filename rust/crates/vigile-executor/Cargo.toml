@@ -10,6 +10,7 @@ workspace = true
 
 [dependencies]
 vigile-ipc = { path = "../vigile-ipc" }
+vigile-backend-fapolicyd = { path = "../backends/vigile-backend-fapolicyd" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 libc = "0.2"

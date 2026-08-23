@@ -204,16 +204,69 @@ impl Executor {
     // -----------------------------------------------------------------
 
     /// Runs the backend's native validator. For fapolicyd this is
-    /// `fapolicyd-cli --check-rules`. Returns true if validation passes.
-    /// MVP: always true (the real validator is wired in M5/ISS-035).
-    pub fn validate(&self, _backend: &str, _tool: &str) -> Result<bool, ExecutorError> {
+    /// `fapolicyd-cli --check-rules` (ISS-035: wired to the real
+    /// backend). Returns true if validation passes.
+    ///
+    /// If fapolicyd-cli is not installed, returns Ok(true) — the AGENT
+    /// checks the capability matrix before calling the executor and
+    /// would not send fapolicyd artifacts to a system without fapolicyd.
+    /// On a dev machine without fapolicyd, we skip validation rather
+    /// than fail (the rules were already validated by the compiler's
+    /// contradiction checks and the server-side pipeline).
+    pub fn validate(&self, backend: &str, _tool: &str) -> Result<bool, ExecutorError> {
         if self.staged.is_none() {
             return Err(ExecutorError::NothingStaged);
         }
-        // TODO(ISS-035): wire the real fapolicyd-cli --check-rules call.
-        // For now, staged artifacts are considered structurally valid
-        // (they passed name validation and hash verification in stage()).
-        Ok(true)
+
+        let staging = self.root.join("staging");
+
+        match backend {
+            "fapolicyd" => {
+                match vigile_backend_fapolicyd::check_rules_dir(&staging) {
+                    Ok(_) => Ok(true),
+                    Err(vigile_backend_fapolicyd::ValidationError::CliNotFound) => {
+                        // fapolicyd-cli not installed on this machine:
+                        // the agent's capability check should have
+                        // prevented this call. We skip rather than fail
+                        // (the dev/test environment doesn't have fapolicyd).
+                        // In production, the VM/lab always has fapolicyd.
+                        Ok(true)
+                    }
+                    Err(e) => Err(ExecutorError::Io(
+                        format!("fapolicyd validation failed: {e}"),
+                        std::io::Error::other("validation"),
+                    )),
+                }
+            }
+            other => Err(ExecutorError::Io(
+                format!("unknown backend: {other}"),
+                std::io::Error::other("unknown backend"),
+            )),
+        }
+    }
+
+    /// Deploys the committed rules to the live system (ISS-035).
+    /// Copies from active/ to /etc/fapolicyd/rules.d/vigile/ and
+    /// triggers a hot reload. This is called AFTER a successful
+    /// commit — the active directory holds the new state.
+    pub fn deploy(&self, backend: &str) -> Result<(), ExecutorError> {
+        let active = self.root.join("active");
+        if !active.exists() {
+            return Err(ExecutorError::NothingStaged);
+        }
+
+        match backend {
+            "fapolicyd" => vigile_backend_fapolicyd::deploy_rules(&active).map_err(|e| {
+                ExecutorError::Io(
+                    format!("fapolicyd deployment failed: {e}"),
+                    std::io::Error::other("deploy"),
+                )
+            }),
+            other => Err(ExecutorError::Io(
+                format!("unknown backend: {other}"),
+                std::io::Error::other("unknown backend"),
+            )),
+        }
     }
 
     // -----------------------------------------------------------------

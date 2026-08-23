@@ -3,7 +3,12 @@ name = "vigile-backend-fapolicyd"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Vigile fapolicyd backend — audit-only first, enforcement later (skeleton)"
+description = "Vigile fapolicyd backend: validation, deployment, denial collection"
 
 [lints]
 workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+vigile-backend-inventory = { path = "../vigile-backend-inventory" }
