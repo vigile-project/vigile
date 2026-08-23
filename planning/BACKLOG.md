@@ -64,7 +64,9 @@ détectée + 7 tests). 157 tests workspace verts, clippy 0.
 > self-lockout ; mode enforcement produit deny), **ISS-032 close**
 > (portail web monofichier : login + statut + audit + vérification).
 > **M7 complet.** 205 tests workspace verts, clippy 0. Le MVP produit
-> est complet.
+> est complet. **M8 complet** (sprint 9, 2026-08-23) : spec RPM
+> (build + install + systemd + utilisateur) + script break-glass
+> contraint. 205 tests verts.
 
 > **Avancement (2026-08-21, soir)** : M0 **complet** — ISS-001/002/003
 > faites ; spikes ISS-006 (PKI/TLS, GO conditionnel), ISS-007 (JCS, GO —
