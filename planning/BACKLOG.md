@@ -38,8 +38,15 @@ n'est pas « done ».
 > first-match + diff. 122 tests workspace verts, clippy 0. **M4 complet** (sprint 5, 2026-08-23) : ISS-030 close (serveur
 HTTP/mTLS + 13 tests), ISS-031 close (admin API + RBAC + jetons
 porteurs), ISS-033 close (audit chaîné SHA-256 + falsification
-détectée + 7 tests). 157 tests workspace verts, clippy 0. Prochain
-jalon : **M5** (phase 2 — fapolicyd audit via l'agent).
+détectée + 7 tests). 157 tests workspace verts, clippy 0.
+
+> **Avancement (2026-08-23, sprint 6 / M6)** : **ISS-038 close**
+> (vigile-ipc : catalogue fermé de 8 actions + socket Unix
+> SO_PEERCRED + validation de chemins/hash + 13 tests dont 8
+> négatifs). 170 tests workspace verts, clippy 0 (unsafe_code =
+> deny avec allow local unique pour SO_PEERCRED, documenté et
+> audité). Restent M6 : ISS-039..041 (actions, transaction,
+> systemd). Prochain jalon : **M5** (phase 2 — fapolicyd audit).
 
 > **Avancement (2026-08-21, soir)** : M0 **complet** — ISS-001/002/003
 > faites ; spikes ISS-006 (PKI/TLS, GO conditionnel), ISS-007 (JCS, GO —
