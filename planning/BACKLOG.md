@@ -56,8 +56,11 @@ détectée + 7 tests). 157 tests workspace verts, clippy 0.
 > rechargement, câblé dans l'exécuteur — **règles validées dans la
 > VM Fedora 44**), ISS-036 close (collecte des refus : parsing
 > journald + corrélation inventaire). 187 tests workspace verts,
-> clippy 0. **M5-M6 complets.** Prochain jalon : **M7** (phase 3 —
-> enforcement + approbations) ou **M8** (portail web).
+> clippy 0. **M5-M6 complets.** **M7 ouvert (sprint 8, 2026-08-23)** : **ISS-044 close** (workflow
+> d'approbation : 4 scopes, expiration locale SEC-303, validation —
+> 7 tests), **ISS-043 close** (seuils d'arrêt automatique : déniels,
+> santé, rollbacks — 7 tests). 201 tests workspace verts, clippy 0.
+> Restent : ISS-042 (enforcement), ISS-032 (portail).
 
 > **Avancement (2026-08-21, soir)** : M0 **complet** — ISS-001/002/003
 > faites ; spikes ISS-006 (PKI/TLS, GO conditionnel), ISS-007 (JCS, GO —

@@ -1,17 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Vigile control plane server (ISS-030/031/033).
+//! Vigile control plane server (ISS-030/031/033/043/044).
 //!
-//! Sprint 5 scope: minimal HTTP/1.1 server with mTLS termination
-//! (rustls, ring backend) serving `/agent/v1/*` (enroll, heartbeat,
-//! policy) and `/admin/v1/*` (status, audit, enrollment tokens with
-//! RBAC). The portal arrives later (ISS-032).
+//! Sprint 5: minimal HTTP/1.1 server with mTLS termination (rustls,
+//! ring backend) serving `/agent/v1/*` (enroll, heartbeat, policy) and
+//! `/admin/v1/*` (status, audit, enrollment tokens with RBAC).
+//! Sprint 8: approval workflow (ISS-044) + deployment thresholds (ISS-043).
 
+pub mod approval;
 pub mod audit;
 pub mod auth;
 pub mod http;
 pub mod routes;
 pub mod state;
+pub mod thresholds;
 
+pub use approval::{ApprovalDecision, ApprovalRequest, ApprovalScope, ApprovalStatus};
 pub use audit::AuditJournal;
 pub use auth::{AdminRole, TokenAuth};
 pub use state::ServerState;
