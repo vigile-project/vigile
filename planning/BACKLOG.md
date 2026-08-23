@@ -35,9 +35,10 @@ n'est pas « done ».
 > **M3 complet** (sprint 4, 2026-08-23) : ISS-023..026 closes —
 > compilateur déterministe (règles validées par fapolicyd-cli natif dans
 > la VM), contradictions C1..C7, non-applicables déclarés, simulateur
-> first-match + diff. 122 tests workspace verts, clippy 0. Prochain
-> jalon : **M4** (serveur HTTP + API, ISS-030..034) — revue humaine
-> attendue.
+> first-match + diff. 122 tests workspace verts, clippy 0. **M4 ouvert (sprint 5)** : **ISS-030 close** (vigile-server :
+parseur HTTP/1.1 strict + routes /agent/v1 + 13 tests d'intégration
+dont 10 négatifs). 139 tests workspace verts, clippy 0. Restent :
+ISS-031 (admin API + RBAC), ISS-033 (audit serveur).
 
 > **Avancement (2026-08-21, soir)** : M0 **complet** — ISS-001/002/003
 > faites ; spikes ISS-006 (PKI/TLS, GO conditionnel), ISS-007 (JCS, GO —

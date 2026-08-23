@@ -328,6 +328,7 @@ fn verify_csr_pop(csr_der: &[u8]) -> Result<(), EnrollmentError> {
 }
 
 /// What an agent submits to enroll.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct EnrollmentRequest {
     pub token: String,
     pub csr_der: Vec<u8>,

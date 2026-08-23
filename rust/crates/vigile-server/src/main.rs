@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Vigile server — control plane (ADR-0007, DEC-10).
-//!
-//! Skeleton only (sprint 1, ISS-001). Internal module boundaries
-//! (api/identity/policy/approval/distribution/audit/store) land with
-//! ISS-030/031.
+//! Vigile server binary entry point (ISS-030).
 
 fn main() {
     println!(
-        "vigile-server {} (skeleton — no functionality yet)",
+        "vigile-server {} (skeleton + HTTP/mTLS — see lib.rs for the real server)",
         env!("CARGO_PKG_VERSION")
     );
+    println!("Use the library API to start the server programmatically.");
+    println!("A proper CLI/config parser arrives with ISS-031.");
 }

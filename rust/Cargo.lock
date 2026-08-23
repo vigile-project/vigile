@@ -1885,6 +1885,14 @@ dependencies = [
 [[package]]
 name = "vigile-server"
 version = "0.1.0"
+dependencies = [
+ "rustls",
+ "rustls-pki-types",
+ "serde",
+ "serde_json",
+ "vigile-pki",
+ "vigile-store",
+]
 
 [[package]]
 name = "vigile-signer"
