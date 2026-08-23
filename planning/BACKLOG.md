@@ -48,8 +48,10 @@ détectée + 7 tests). 157 tests workspace verts, clippy 0.
 > audité). ISS-039/040 closes
 > (exécuteur transactionnel : stage O_NOFOLLOW + commit atomique +
 > rollback LKG — 12 tests dont cycle complet et attaque par symlink).
-> 182 tests workspace verts, clippy 0. Reste M6 : ISS-041 (systemd
-> durci). Prochain jalon : **M5** (phase 2 — fapolicyd audit).
+> 182 tests workspace verts, clippy 0. **ISS-041 close** (unités
+> systemd durcies : agent zéro capability + exécuteur AF_UNIX
+> uniquement + audit HARDENING.md + systemd-analyze verify = OK).
+> **M6 complet**. Prochain jalon : **M5** (phase 2 — fapolicyd audit).
 
 > **Avancement (2026-08-21, soir)** : M0 **complet** — ISS-001/002/003
 > faites ; spikes ISS-006 (PKI/TLS, GO conditionnel), ISS-007 (JCS, GO —

@@ -1,6 +1,6 @@
 # SPRINT 6 — Exécuteur et transactions (M6)
 
-> **Statut** : En cours — ISS-038/039/040 closes, ISS-041 restante
+> **Statut** : **Terminé** (M6 complet) — 2026-08-23
 > **Périmètre** : issues ISS-038 à ISS-041 (`planning/BACKLOG.md` §M6)
 > **Pré-requis** : M1..M4 ✓ ; M6 est le prérequis de M5 (fapolicyd
 > audit) et M7 (enforcement).
@@ -18,7 +18,7 @@ frontière de confiance TB-2 — la plus critique du produit.
 | ISS-038 | `vigile-ipc` : **catalogue fermé** de 8 actions (Ping, GetState, StageArtifacts, ValidateArtifacts, Commit, Rollback, HealthCheck, AckGeneration) avec tag interne `deny_unknown_fields` ; enveloppe avec vérification de version `ipc/v1` ; **validation des chemins d'artefacts** (relatifs, pas `..`, pas `//`, pas de contrôle, ≤16 composantes, ≤512 octets) ; **validation des hash de bundle** (SHA-256 hex) ; socket Unix avec cadrage 4 octets BE + JSON, `SO_PEERCRED` (UID vérifié AVANT tout traitement), limite de taille de trame, client et serveur | ✅ fait le 2026-08-23 — 13 tests (roundtrips, actions inconnues, protocole erroné, JSON hostile, validation de chemins, validation de hash, UID erroné, trame oversized) |
 | ISS-039 | `Executor::stage()` — écriture sécurisée (O_NOFOLLOW sur chaque fichier, fsync fichier + répertoires parents, permissions 0755/0644), noms d'artefacts validés **avant** toute écriture, zone de staging nettoyée avant chaque nouveau stage ; `validate()` placeholder (branchement fapolicyd-cli en M5/ISS-035) ; `commit()` — sauvegarde active→LKG, rename atomique staging→active, fsync root, nettoyage ; `rollback()` — restaure LKG→active (LKG préservé) | ✅ fait le 2026-08-23 |
 | ISS-040 | Cycle transactionnel complet testé : stage→validate→commit (v1)→stage→commit (v2)→**rollback→v1**→stage→commit (v3) ; staging sale détecté (2e stage sans commit → erreur) ; commit sans stage → erreur ; rollback sans LKG → erreur ; **symlink planté dans le staging n'est pas suivi** (O_NOFOLLOW vérifié par test) ; permissions vérifiées (0644 sur les fichiers, 0755 sur les répertoires) | ✅ fait le 2026-08-23 — 12 tests |
-| ISS-041 | Unités systemd durcies (agent + exécuteur) + seccomp justifié | à faire |
+| ISS-041 | `vigile-agent.service` (utilisateur dédié vigile, ProtectSystem=strict, CapabilityBoundingSet=**vide**, AF_UNIX+INET+INET6 pour HTTPS/mTLS, MemoryDenyWriteExecute, seccomp deny @obsolete/@mount/@debug/@swap, MemoryMax=150M) + `vigile-executor.service` (root minimal, ProtectSystem=strict + ReadWritePaths **minimaux** (/var/lib/vigile/executor, /etc/fapolicyd, /run/vigile), CapabilityBoundingSet=CAP_DAC_OVERRIDE+CAP_FOWNER, **RestrictAddressFamilies=AF_UNIX** (aucun réseau — compromis = pas d'exfiltration), seccomp deny @network-io, MemoryMax=100M, TasksMax=16) + **HARDENING.md** (audit complet de chaque directive et capability, justification écrite) | ✅ fait le 2026-08-23 — **validé par systemd-analyze verify** (seul avertissement restant : binaires pas encore installés) |
 
 ## Décision de format IPC
 
