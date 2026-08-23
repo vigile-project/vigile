@@ -1852,6 +1852,11 @@ version = "0.1.0"
 [[package]]
 name = "vigile-ipc"
 version = "0.1.0"
+dependencies = [
+ "libc",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "vigile-pki"

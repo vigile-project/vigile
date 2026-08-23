@@ -57,7 +57,9 @@ repository = "https://github.com/vigile-project/vigile"
 # sur entrée distante (les lints ci-dessous s'appliquent à toutes les crates
 # via [lints] workspace = true).
 [workspace.lints.rust]
-unsafe_code = "forbid"
+# deny (not forbid) : permet l'allow local UNIQUEMENT pour les FFI
+# documentés et audités (voir vigile-ipc/src/socket.rs::peer_uid).
+unsafe_code = "deny"
 
 [workspace.lints.clippy]
 unwrap_used = "deny"
