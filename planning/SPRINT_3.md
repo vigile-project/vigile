@@ -1,6 +1,6 @@
 # SPRINT 3 — Inventaire applicatif (M2)
 
-> **Statut** : En cours — ouvert le 2026-08-22
+> **Statut** : **Terminé** (M2 complet) — 2026-08-22
 > **Périmètre** : issues ISS-017 à ISS-022 (`planning/BACKLOG.md` §M2)
 > **Pré-requis** : M1 complet ✓ ; VM de laboratoire ✓ ; registre
 > persistant ✓.
@@ -18,10 +18,10 @@ blocage — M2 est purement observation.
 |---|---|---|
 | ISS-017 | `platform.rs` (os-release strict, familles par ID/ID_LIKE) + `capabilities.rs` (matrice embarquée 8 backends × 5 familles, sondes locales sous racine virtuelle, déclaré ∧ présent → effectif, famille inconnue = tout `unavailable` — ADR-0009) | ✅ fait le 2026-08-22 — 9 tests |
 | ISS-018 | `packages.rs` : format de requête rpm (séparateur US pour éviter les collisions de tabulations), parseur pur (champs obligatoires nom+EVR, lignes malformées sautées jamais fatales), extraction du Key ID signataire, lanceur `rpm -qa` fin | ✅ fait le 2026-08-22 — 4 tests |
-| ISS-019 | Exécutables hors paquets : parcours des chemins standards + `$HOME`, filtre bit exécutable + non-symlink, SHA-256 (`sha2` à adopter avec journal) | à faire |
+| ISS-019 | `executables.rs` : parcours raciné (chemins standards + home explicite), bit exécutable, **symlinks jamais suivis** (fichiers ET racines — usrmerge piégé par la VM), SHA-256 streamé (`sha2` 0.11 adoptée), bornes (`MAX_FILES`), racines absentes ≠ erreur, clés relatives à la racine virtuelle | ✅ fait le 2026-08-22 — 5 tests |
 | ISS-020 | `exec_detection.rs` : magie ELF, parsing shebang hostile-safe (truncature, CRLF, non-UTF8, `#!` vide), classification de fichier, familles d'interpréteurs y compris **`/usr/bin/env` avec drapeaux (`-S`)** — le vecteur TM-021 | ✅ fait le 2026-08-22 — 6 tests (1 bug réel trouvé par test : `-S` pris pour l'interpréteur) |
-| ISS-021 | Collecte journald : sous-processus `journalctl -o json` + parseur pur testable ; files bornées à priorités | à faire |
-| ISS-022 | Envoi différé : outbox avec priorités, diffs incrémentaux, calcul de backoff avec jitter (pur, testable) — le transport réseau arrive avec ISS-030 | à faire |
+| ISS-021 | `journal.rs` (parseur journalctl NDJSON hostile-safe, tableaux d'octets conservés sans perte, lanceur fin) + `spool.rs` (**file bornée à priorités : la télémétrie est évincée en premier, la sécurité JAMAIS**, saturation sécurité comptée pour alerte — FM-17) | ✅ fait le 2026-08-22 — 9 tests |
+| ISS-022 | `outbox.rs` : diff d'inventaire incrémental (ajoutés/modifiés/supprimés) + backoff exponentiel à jitter **injecté** (bornes prouvables pour tout RNG, cap, pas de débordement) — transport réseau différé à ISS-030 | ✅ fait le 2026-08-22 — 5 tests |
 
 ## Règles du sprint
 
@@ -33,7 +33,20 @@ blocage — M2 est purement observation.
 
 ## Critères de sortie
 
-1. Sur la VM de laboratoire Fedora : l'agent produit un inventaire
-   complet (distribution, capacités, paquets, exécutables, scripts).
-2. Tests négatifs sur chaque parseur (entrées hostiles, troncatures).
-3. Revue humaine avant M3 (compilateur de politiques).
+1. ✅ **VM Fedora 44 (2026-08-22)** : `vigile-agent inventory` produit
+   l'inventaire complet réel — plateforme fedora 44, **431/432 paquets
+   signés** (rpm 6 / OPENPGP), capacités (fapolicyd présent → supported
+   depuis le smoke), 3 exécutables hors paquets plantés pour l'occasion
+   (script `env -S`, script bash, ELF) avec kind + SHA-256.
+2. ✅ Tests négatifs sur chaque parseur (entrées hostiles, troncatures,
+   base64 non paddé, paquet OpenPGP falsifié).
+3. ⏳ Revue humaine avant M3 (compilateur de politiques) — **en attente**.
+
+## Bugs réels trouvés par les tests/VM (à retenir)
+
+- rpm 6.0.2 vide `%{SIGPGP:pgpsig}` → signatures dans `%{OPENPGP}`
+  (paquet OpenPGP base64, Key ID extrait du sous-paquet issuer).
+- usrmerge : `/usr/local/sbin` est un symlink → racines de scan
+  elles-mêmes vérifiées (sinon doublons).
+- Transcription manuelle d'un long vecteur de test = coquille → le
+  `const` du test rpm6 est régénéré depuis une capture réelle.

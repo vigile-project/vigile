@@ -1822,6 +1822,11 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 [[package]]
 name = "vigile-agent"
 version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "vigile-backend-inventory",
+]
 
 [[package]]
 name = "vigile-backend-fapolicyd"
@@ -1830,6 +1835,11 @@ version = "0.1.0"
 [[package]]
 name = "vigile-backend-inventory"
 version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+]
 
 [[package]]
 name = "vigile-client"

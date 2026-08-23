@@ -27,8 +27,13 @@ n'est pas « done ».
 > 8 tests PostgreSQL. **M2 ouvert (sprint 3)** : ISS-017 close
 > (os-release + matrice de capacités embarquée, 9 tests), ISS-018 close
 > (adaptateur rpm, 4 tests), ISS-020 close (ELF + shebang + `env -S`,
-> 6 tests). 78 tests workspace verts. Restent : ISS-019 (exécutables +
-> SHA-256), ISS-021 (journald), ISS-022 (envoi différé).
+> 6 tests). 78 tests workspace verts. ISS-019/020/021/022 closes
+> (exécutables + SHA-256 via `sha2` 0.11, journald + file bornée à
+> priorités, diff incrémental + backoff à jitter) ; **M2 complet** :
+> inventaire réel validé dans la VM Fedora 44 (`vigile-agent inventory`,
+> 431/432 paquets signés rpm 6). 101 tests workspace verts, clippy 0.
+> Prochain jalon : **M3** (compilateur de politiques, ISS-023..026) —
+> revue humaine de fin de sprint attendue.
 
 > **Avancement (2026-08-21, soir)** : M0 **complet** — ISS-001/002/003
 > faites ; spikes ISS-006 (PKI/TLS, GO conditionnel), ISS-007 (JCS, GO —

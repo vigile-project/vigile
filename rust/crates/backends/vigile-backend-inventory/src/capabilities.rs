@@ -8,6 +8,7 @@
 
 use crate::platform::{resolve_family, DistroFamily, OsRelease};
 use crate::SupportLevel;
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 /// One row of the capability matrix + how to probe local presence.
@@ -108,7 +109,7 @@ pub const CAPABILITY_MATRIX: &[CapabilitySpec] = &[
 /// A detected capability: what the matrix declares for the running
 /// family, whether the backend is present locally, and the effective
 /// level actually used (declared ∧ present).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DetectedCapability {
     pub backend: String,
     pub declared: SupportLevel,
@@ -116,6 +117,7 @@ pub struct DetectedCapability {
     pub effective: SupportLevel,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CapabilityReport {
     pub os: OsRelease,
     pub family: DistroFamily,

@@ -3,7 +3,12 @@ name = "vigile-agent"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Vigile unprivileged agent (skeleton)"
+description = "Vigile unprivileged agent"
 
 [lints]
 workspace = true
+
+[dependencies]
+vigile-backend-inventory = { path = "../backends/vigile-backend-inventory" }
+serde = { workspace = true }
+serde_json = { workspace = true }

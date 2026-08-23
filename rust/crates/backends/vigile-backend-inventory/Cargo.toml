@@ -5,5 +5,10 @@ edition.workspace = true
 license.workspace = true
 description = "Vigile inventory backend adapters — dnf/rpm, executables, interpreters (skeleton)"
 
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+
 [lints]
 workspace = true

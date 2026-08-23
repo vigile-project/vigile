@@ -19,6 +19,7 @@ moment de l'adoption, rôle, et preuve d'évaluation. Revue de renouvellement
 | serde | 1.x | MIT OR Apache-2.0 | active | Structures des claims d'enrôlement (champs fixes → sérialisation déterministe) | ISS-012 | Adoptée 2026-08-22 |
 | getrandom | 0.3.x | MIT OR Apache-2.0 | 0.3.4 présente dans l'arbre | Aléa des identifiants de token (RNG OS) | ISS-012 | Adoptée 2026-08-22 |
 | time | 0.3.x | Apache-2.0 OR MIT | active | Fenêtres de validité des certificats | Déjà transitive de rcgen ; usage limité | Adoptée 2026-08-22 (DEC-07) |
+| sha2 | 0.11.x | MIT OR Apache-2.0 | 2026-03-25 (RustCrypto/hashes) | SHA-256 des exécutables inventoriés (ISS-019) | Écosystème RustCrypto, standard | Adoptée 2026-08-22 |
 | postgres | 0.19.x | MIT OR Apache-2.0 | 2026-06-12 (rust-postgres) | Client PostgreSQL **synchrone** (aucun runtime async encore) ; JSONB via feature `with-serde_json-1` | ISS-016 — 8 tests d'intégration sur PostgreSQL 17 réel (podman rootless) | Adoptée 2026-08-22 |
 
 **Risque transversal noté** : `ring 0.17.14` sans release depuis 2025-03

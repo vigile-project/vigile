@@ -40,6 +40,8 @@ time = "0.3"
 # Sync PostgreSQL client (no async runtime yet — ISS-030 will decide the
 # final shape); evaluated 2026-08-22 for ISS-016 (rust/DEPENDENCIES.md).
 postgres = { version = "0.19", features = ["with-serde_json-1"] }
+# SHA-256 of inventoried executables (ISS-019) — RustCrypto, MIT/Apache.
+sha2 = "0.11"
 
 # Internal crates
 vigile-pki = { path = "crates/vigile-pki" }

@@ -4,8 +4,11 @@
 //! decisions on scripts and indirect executions (TM-021). Pure parsers,
 //! hostile-input safe (truncations, CRLF, no newline, junk).
 
+use serde::{Deserialize, Serialize};
+
 /// How a file announces its executable nature.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum FileKind {
     Elf,
     Script(Shebang),
@@ -14,7 +17,7 @@ pub enum FileKind {
 }
 
 /// A parsed `#!interpreter [argument]` line.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Shebang {
     /// Interpreter path exactly as written (not resolved).
     pub interpreter: String,
@@ -82,7 +85,8 @@ pub fn classify(header: &[u8]) -> FileKind {
 
 /// Interpreter families Vigile reasons about (allow/deny semantics for
 /// indirect execution — POLICY_MODEL §2 `execution.interpreters`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum Interpreter {
     Sh,
     Bash,

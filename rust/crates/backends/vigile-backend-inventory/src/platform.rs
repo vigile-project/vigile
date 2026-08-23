@@ -6,10 +6,11 @@
 //! Pure and testable: parsing works on any string, reading works under a
 //! virtual root (tests build fake filesystems).
 
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 /// Parsed `/etc/os-release` (subset of the spec used by Vigile).
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OsRelease {
     pub id: String,
     pub id_like: Vec<String>,
@@ -65,7 +66,8 @@ pub fn read_os_release(root: &Path) -> Result<OsRelease, std::io::Error> {
 
 /// Distribution families used by the capability matrix. Matching is by
 /// `ID` then `ID_LIKE`, most specific first.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum DistroFamily {
     Fedora,
     RhelFamily,
