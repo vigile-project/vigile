@@ -20,8 +20,12 @@ n'est pas « done ».
 > clone/snapshot/rejeu, quarantaine collante + audit, 8 tests),
 > **ISS-015 close** (enveloppe `agent/v1` : nonce à tour unique,
 > horloge bornée ±10 min, séquence via registre, schéma strict — 11
-> tests). 59 tests workspace verts, clippy strict 0. Reste M1 :
-> **ISS-016** (registre persistant PostgreSQL — schema + migration).
+> tests), **ISS-016 close** (`vigile-store` : migrations séparées par
+> domaine, événements append-**par trigger**, `PgStore` jumeau persistant
+> du registre, inventaire machines — **8/8 tests sur PostgreSQL 17 réel**
+> via podman rootless). **M1 complet** : 59 tests workspace (clippy 0) +
+> 8 tests PostgreSQL. Prochain jalon : M2 (inventaire applicatif,
+> ISS-017..022).
 
 > **Avancement (2026-08-21, soir)** : M0 **complet** — ISS-001/002/003
 > faites ; spikes ISS-006 (PKI/TLS, GO conditionnel), ISS-007 (JCS, GO —

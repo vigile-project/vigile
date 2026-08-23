@@ -12,6 +12,7 @@ members = [
     "crates/vigile-policy",
     "crates/vigile-ipc",
     "crates/vigile-pki",
+    "crates/vigile-store",
     "crates/backends/vigile-backend-inventory",
     "crates/backends/vigile-backend-fapolicyd",
 ]
@@ -36,6 +37,12 @@ ed25519-dalek = { version = "2", features = ["pkcs8"] }
 signature = "3"
 # Already transitively required by rcgen; used for certificate validity windows.
 time = "0.3"
+# Sync PostgreSQL client (no async runtime yet — ISS-030 will decide the
+# final shape); evaluated 2026-08-22 for ISS-016 (rust/DEPENDENCIES.md).
+postgres = { version = "0.19", features = ["with-serde_json-1"] }
+
+# Internal crates
+vigile-pki = { path = "crates/vigile-pki" }
 
 [workspace.package]
 version = "0.1.0"

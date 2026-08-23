@@ -29,6 +29,7 @@ vigile/
 │   │   ├── vigile-signer/         # service de signature isolé (TB-5)
 │   │   ├── vigile-policy/         # schéma policy/vN, canonisation, compilateur
 │   │   ├── vigile-pki/            # PKI interne Ed25519 : hiérarchie CA, CRL (ISS-011)
+│   │   ├── vigile-store/          # stockage PostgreSQL : migrations + registre (ISS-016)
 │   │   ├── vigile-ipc/            # protocole ipc/v1 (catalogue d'actions)
 │   │   ├── vigile-client/         # CLI d'administration
 │   │   └── backends/

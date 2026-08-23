@@ -24,6 +24,7 @@
 //! d'identité incohérente ; FAILURE_MODES `QUARANTINE`).
 
 use crate::enrollment::EnrolledAgent;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -33,7 +34,8 @@ pub enum AgentStatus {
     Quarantined,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Serialization (external tagging) is used for PostgreSQL JSONB persistence.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum QuarantineReason {
     /// The agent id presented a fingerprint different from enrollment.
     CloneSuspected { expected: String, presented: String },
@@ -120,7 +122,7 @@ pub struct SecurityEvent {
     pub kind: SecurityEventKind,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SecurityEventKind {
     Enrolled {
         agent_id: String,

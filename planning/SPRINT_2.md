@@ -1,6 +1,6 @@
 # SPRINT 2 — Identité et enrôlement (M1)
 
-> **Statut** : En cours — ouvert le 2026-08-22
+> **Statut** : **Terminé** (M1 complet) — 2026-08-22
 > **Périmètre** : issues ISS-011 à ISS-016 (`planning/BACKLOG.md` §M1)
 > **Pré-requis** : sprint 1 terminé ✓ ; prototype PKI validé ✓ (rapport
 > `docs/spikes/ISS-011-prototype-pki.md`) ; **décision humaine DEC-07
@@ -24,7 +24,7 @@ est purement identité/inventaire.
 | ISS-013 | Rotation : décision de renouvellement T-30 j (`should_renew`), émission à fenêtre de validité explicite (chevauchement prouvé), rotation avec **nouvelle clé**, révocation de l'ancien certificat, certificat expiré refusé, **CRL expirée refusée quand `enforce_revocation_expiration`** (découverte : rustls **ignore** les CRL expirées par défaut — fail-open documenté, à activer en production) | ✅ fait le 2026-08-22 — 5 tests |
 | ISS-014 | Registre d'identités (`registry.rs`) : 3 détections — empreinte machine divergente sous même agent (clone), **compteur monotone régressé** (snapshot ancien) ou rejoué à l'identique, ré-enrôlement d'une empreinte déjà prise ; **quarantaine collante** (réactivation admin seule), quarantaine manuelle, journal d'événements auditable. Limite documentée : clone strictement identique non simultané → détection au niveau serveur (ISS-030) et par rotation de clé + CRL | ✅ fait le 2026-08-22 — 8 tests |
 | ISS-015 | Enveloppe de message `agent/v1` (`envelope.rs`) : nonce serveur à **tour unique par message accepté**, horodatage RFC3339 à dérive bornée (±10 min, DEC-09), compteur monotone délégué au registre (régression → quarantaine), protocole épinglé, schéma strict (`deny_unknown_fields`), request-id validé. Un message rejeté ne consomme jamais le nonce (un souci d'horloge ne désynchronise pas agent/serveur) | ✅ fait le 2026-08-22 — 11 tests |
-| ISS-016 | Registre agents + inventaire machine (schémas PostgreSQL, ADR-0007) | à faire |
+| ISS-016 | Crate `vigile-store` : migrations embarquées (schémas `agents`/`inventory` séparés, événements **append-only par trigger**, `tenant_id` partout, empreinte machine unique globalement), runner sérialisé par verrou consultatif, `PgStore` jumeau persistant du registre (savepoint sur violation d'unicité), inventaire machines en upsert. **8/8 tests d'intégration sur PostgreSQL 17 réel** (podman rootless, `tests/run-pg-podman.sh`) | ✅ fait le 2026-08-22 — **M1 complet** |
 
 ## Découverte structurante du prototype
 
