@@ -16,9 +16,9 @@ jobs:
       run:
         working-directory: rust
     steps:
-      # TODO(supply-chain): pin third-party actions by commit hash once the
-      # org exists (docs/SUPPLY_CHAIN_SECURITY.md §3).
-      - uses: actions/checkout@v4
+      # TODO(supply-chain): pin third-party actions by commit hash
+      # (docs/SUPPLY_CHAIN_SECURITY.md §3).
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -38,25 +38,37 @@ jobs:
       run:
         working-directory: rust
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: EmbarkStudios/cargo-deny-action@v2
 
   secrets:
     name: Secret scan (gitleaks)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
+      # gitleaks-action v2+ requires a paid license for org repos.
+      # We run the gitleaks BINARY directly (MIT-licensed, free) —
+      # same tool, no license wrapper needed.
+      - name: Install and run gitleaks
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_VERSION: "8.24.3"
+        run: |
+          curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar xz
+          ./gitleaks detect --source . --report-format json --report-path gitleaks-report.json --exit-code 1 --redact
+      - name: Upload report (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-report
+          path: gitleaks-report.json
 
   schema:
     name: Policy schema and vectors
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: JSON parse check (full schema validation = ISS-010)
         run: |
           python3 - <<'PYEOF'
