@@ -1,0 +1,22 @@
+[package]
+name = "vigile-policy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Vigile policy schema, canonicalization and compiler"
+
+[lints]
+workspace = true
+
+[dependencies]
+# All dependencies are declared at the workspace level with an adoption log
+# (rust/DEPENDENCIES.md, checklist docs/SUPPLY_CHAIN_SECURITY.md §1).
+#
+# serde_json « float_roundtrip » is MANDATORY for JCS canonicalization:
+# without it, floats are parsed with a possible 1-ULP error, breaking
+# signatures (docs/spikes/ISS-007-canonisation-jcs.md).
+serde_json = { workspace = true }
+ryu = { workspace = true }
+# default-features = false: no network resolution of $ref — the schema is
+# embedded and no external reference may ever be resolved.
+jsonschema = { workspace = true }

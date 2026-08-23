@@ -1,0 +1,60 @@
+# Workspace Vigile — ADR-0001 (Rust partout), ADR-0002 (séparation agent/exécuteur)
+# Squelette sprint 1 (ISS-001). Aucune dépendance externe à ce stade.
+
+[workspace]
+resolver = "2"
+members = [
+    "crates/vigile-agent",
+    "crates/vigile-executor",
+    "crates/vigile-server",
+    "crates/vigile-signer",
+    "crates/vigile-client",
+    "crates/vigile-policy",
+    "crates/vigile-ipc",
+    "crates/vigile-pki",
+    "crates/backends/vigile-backend-inventory",
+    "crates/backends/vigile-backend-fapolicyd",
+]
+
+# Dependencies adopted per DEC-07 (human green light, 2026-08-22) after
+# spike ISS-006 research + validated prototype (docs/spikes/ISS-011-prototype-pki.md).
+# Adoption log (checklist docs/SUPPLY_CHAIN_SECURITY.md §1): rust/DEPENDENCIES.md
+[workspace.dependencies]
+serde_json = { version = "1", features = ["float_roundtrip"] }
+serde = { version = "1", features = ["derive"] }
+getrandom = "0.3"
+ryu = "1"
+jsonschema = { version = "0.50", default-features = false }
+rcgen = { version = "0.14", features = ["x509-parser"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+rustls-pki-types = "1"
+x509-cert = { version = "0.3", features = ["builder"] }
+der = "0.8"
+ed25519-dalek = { version = "2", features = ["pkcs8"] }
+# MUST be version 3: x509-cert 0.3 requires signature 3.0/spki 0.8 traits;
+# mixing with 2.x silently breaks CrlBuilder bounds (see prototype report).
+signature = "3"
+# Already transitively required by rcgen; used for certificate validity windows.
+time = "0.3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/vigile-project/vigile"
+
+# Charte §20 : unsafe interdit par défaut, clippy strict, aucun panic attendu
+# sur entrée distante (les lints ci-dessous s'appliquent à toutes les crates
+# via [lints] workspace = true).
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "warn"
+
+[profile.release]
+lto = "thin"
+strip = "symbols"

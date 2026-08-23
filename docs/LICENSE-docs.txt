@@ -1,0 +1,8 @@
+Documentation of the Vigile project (docs/, adr/, planning/, README files)
+is licensed under the Creative Commons Attribution-ShareAlike 4.0
+International license (CC BY-SA 4.0).
+
+Full license text: https://creativecommons.org/licenses/by-sa/4.0/legalcode
+
+Decision DEC-02 (2026-08-21). Code is licensed separately under
+AGPL-3.0-or-later (see /LICENSE).

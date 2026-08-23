@@ -1,0 +1,9 @@
+[package]
+name = "vigile-client"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Vigile administration CLI (skeleton)"
+
+[lints]
+workspace = true

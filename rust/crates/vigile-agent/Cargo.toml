@@ -1,0 +1,9 @@
+[package]
+name = "vigile-agent"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Vigile unprivileged agent (skeleton)"
+
+[lints]
+workspace = true

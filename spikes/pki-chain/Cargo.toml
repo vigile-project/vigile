@@ -1,0 +1,27 @@
+[package]
+name = "pki-chain-spike"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-or-later"
+description = "Sprint 2 / ISS-011 - PKI prototype: Ed25519 chain, mTLS with rustls(ring), CRL via x509-cert (throwaway validation code)"
+publish = false
+
+# Spike autonome : HORS du workspace principal (code jetable). L'adoption
+# définitive des dépendances suivra la check-list docs/SUPPLY_CHAIN_SECURITY.md §1.
+[workspace]
+
+[dependencies]
+# Stack recommandée par le spike ISS-006 (docs/spikes/ISS-006-pki-tls.md)
+rcgen = { version = "0.14", features = ["x509-parser"] }  # défaut : backend ring
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+rustls-pki-types = "1"
+x509-cert = { version = "0.3", features = ["builder"] }   # CrlBuilder
+der = "0.8"
+# Signature Ed25519 des CRL : dalek (feature pkcs8 pour l'import PKCS#8).
+# NB : dalek implémente les traits spki 0.7 ; l'adaptateur vers spki 0.8
+# (exigé par x509-cert) est écrit dans ce spike (src/adapters.rs).
+ed25519-dalek = { version = "2", features = ["pkcs8"] }
+# IMPORTANT : x509-cert 0.3 dépend de signature 3.0 ; si on dépend de la 2.x,
+# deux versions cohabitent et les traits ne satisfont pas les bornes du
+# CrlBuilder (constaté : E0277 sur Signer/Keypair).
+signature = "3"

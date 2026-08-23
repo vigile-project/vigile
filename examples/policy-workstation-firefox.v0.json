@@ -1,0 +1,66 @@
+{
+  "policy": {
+    "id": "8f14e45f-ea9f-4c5b-9b1c-2c1d3e4f5a6b",
+    "version": 17,
+    "schema_version": "policy/v0",
+    "tenant": "00000000-0000-0000-0000-000000000001",
+    "target": {
+      "groups": ["workstations"]
+    },
+    "application": {
+      "identity": {
+        "package": {
+          "name": "firefox",
+          "vendor": "distribution"
+        },
+        "hashes": [],
+        "signer": null
+      }
+    },
+    "execution": {
+      "decision": "allow",
+      "interpreters": {
+        "allow": [],
+        "deny": ["/usr/bin/bash"]
+      }
+    },
+    "filesystem": {
+      "read": {
+        "allow": ["$HOME/Downloads/**"],
+        "deny": ["$HOME/.ssh/**"]
+      },
+      "write": {
+        "allow": ["$HOME/Downloads/**"],
+        "deny": []
+      }
+    },
+    "network": {
+      "default": "deny",
+      "allow": [
+        {
+          "protocol": "tcp",
+          "destination": "update-service.example",
+          "ports": [443]
+        }
+      ]
+    },
+    "usb": {
+      "decision": "not-applicable"
+    },
+    "validity": {
+      "not_before": "2026-09-01T00:00:00Z",
+      "not_after": null
+    },
+    "approval": {
+      "required_roles": ["security-approver"],
+      "references": []
+    },
+    "rollout": {
+      "strategy": "canary",
+      "rings": []
+    },
+    "safety": {
+      "protected_services": ["vigile-agent.service", "vigile-executor.service"]
+    }
+  }
+}

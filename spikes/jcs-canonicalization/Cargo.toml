@@ -1,0 +1,19 @@
+[package]
+name = "jcs-canonicalization-spike"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-or-later"
+description = "Spike ISS-007 - RFC 8785 (JCS) canonical JSON for Vigile (throwaway validation code)"
+publish = false
+
+# Spike autonome : volontairement HORS du workspace principal (code jetable,
+# non livré). Ne pas ajouter au workspace sans passer par la revue de
+# dépendances (docs/SUPPLY_CHAIN_SECURITY.md §1).
+[workspace]
+
+[dependencies]
+# « float_roundtrip » OBLIGATOIRE : sans elle, serde_json analyse les flottants
+# avec une erreur possible de 1 ULP, ce qui casse la canonisation JCS
+# (constaté sur le vecteur values.json : 333333333.33333329 mal arrondi).
+serde_json = { version = "1", features = ["float_roundtrip"] }
+ryu = "1"

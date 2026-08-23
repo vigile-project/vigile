@@ -1,0 +1,13 @@
+#cloud-config
+# VM de laboratoire Vigile (tests/vm). Utilisateur de test uniquement,
+# aucun secret : la clé SSH est jetable, générée par bin/mkseed.sh.
+hostname: vigile-f44
+users:
+  - name: vigile
+    groups: [wheel]
+    shell: /bin/bash
+    lock_passwd: true
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    ssh_authorized_keys:
+      - __VIGILE_SSH_KEY__
+ssh_pwauth: false

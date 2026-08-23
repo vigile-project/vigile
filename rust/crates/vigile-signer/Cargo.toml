@@ -1,0 +1,9 @@
+[package]
+name = "vigile-signer"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Vigile isolated signing service (skeleton)"
+
+[lints]
+workspace = true

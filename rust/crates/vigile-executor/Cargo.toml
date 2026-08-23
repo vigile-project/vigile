@@ -1,0 +1,9 @@
+[package]
+name = "vigile-executor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Vigile minimal privileged executor (skeleton)"
+
+[lints]
+workspace = true

@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    name: Rust (fmt, clippy, test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      # TODO(supply-chain): pin third-party actions by commit hash once the
+      # org exists (docs/SUPPLY_CHAIN_SECURITY.md §3).
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Formatting
+        run: cargo fmt --all -- --check
+      - name: Clippy (strict, charter §20)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Tests
+        run: cargo test --workspace
+      - name: Check all targets
+        run: cargo check --workspace --all-targets
+
+  licenses:
+    name: Dependencies (cargo-deny)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+
+  secrets:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  schema:
+    name: Policy schema and vectors
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: JSON parse check (full schema validation = ISS-010)
+        run: |
+          python3 - <<'PYEOF'
+          import json, pathlib, sys
+          files = [p for p in pathlib.Path('.').rglob('*.json')]
+          assert files, "no JSON files found"
+          for p in sorted(files):
+              json.loads(p.read_text(encoding="utf-8"))
+              print(f"OK  {p}")
+          print(f"{len(files)} JSON files parsed")
+          PYEOF

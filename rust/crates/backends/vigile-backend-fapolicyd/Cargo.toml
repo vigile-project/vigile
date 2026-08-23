@@ -1,0 +1,9 @@
+[package]
+name = "vigile-backend-fapolicyd"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Vigile fapolicyd backend — audit-only first, enforcement later (skeleton)"
+
+[lints]
+workspace = true

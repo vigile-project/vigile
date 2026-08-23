@@ -1,0 +1,9 @@
+[package]
+name = "vigile-backend-inventory"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Vigile inventory backend adapters — dnf/rpm, executables, interpreters (skeleton)"
+
+[lints]
+workspace = true
