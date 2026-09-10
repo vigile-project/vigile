@@ -49,6 +49,7 @@ sha2 = "0.11"
 
 # Internal crates
 vigile-pki = { path = "crates/vigile-pki" }
+vigile-policy = { path = "crates/vigile-policy" }
 vigile-store = { path = "crates/vigile-store" }
 
 [workspace.package]
