@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Vigile — Security Control</title>
+    <style>
+        :root {
+            --bg: #0f0f1a; --surface: #1a1a2e; --card: #16213e;
+            --text: #e4e6eb; --muted: #8892b0; --accent: #64ffda;
+            --accent2: #bd93f9; --border: #2a2a4a;
+            --ok: #50fa7b; --warn: #f1fa8c; --err: #ff5555;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); display: flex; min-height: 100vh; }
+        nav { width: 240px; background: var(--surface); padding: 1rem; border-right: 1px solid var(--border); flex-shrink: 0; }
+        nav h1 { font-size: 1.3rem; margin-bottom: 1.5rem; color: var(--accent); display: flex; align-items: center; gap: 0.5rem; }
+        nav a { display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.8rem; margin-bottom: 0.3rem; color: var(--muted); text-decoration: none; border-radius: 6px; transition: all 0.2s; }
+        nav a:hover, nav a.active { background: var(--card); color: var(--accent); }
+        main { flex: 1; padding: 1.5rem; overflow-y: auto; }
+        h2 { margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 1.2rem; }
+        .card h3 { font-size: 0.85rem; text-transform: uppercase; color: var(--muted); margin-bottom: 0.5rem; letter-spacing: 1px; }
+        .card .value { font-size: 1.8rem; font-weight: 700; }
+        .card .sub { font-size: 0.8rem; color: var(--muted); margin-top: 0.3rem; }
+        .badge { display: inline-flex; align-items: center; gap: 0.3rem; padding: 2px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+        .badge.ok { background: rgba(80,250,123,.15); color: var(--ok); }
+        .badge.warn { background: rgba(241,250,140,.15); color: var(--warn); }
+        .badge.err { background: rgba(255,85,85,.15); color: var(--err); }
+        .badge.info { background: rgba(189,147,249,.15); color: var(--accent2); }
+        table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 10px; overflow: hidden; }
+        th { background: var(--surface); padding: 0.7rem 1rem; text-align: left; font-size: 0.8rem; text-transform: uppercase; color: var(--muted); letter-spacing: 0.5px; }
+        td { padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+        tr:last-child td { border-bottom: none; }
+        #login { max-width: 380px; margin: 6rem auto; padding: 2rem; background: var(--surface); border-radius: 14px; border: 1px solid var(--border); text-align: center; }
+        #login h1 { color: var(--accent); margin-bottom: 1rem; font-size: 2rem; }
+        #login input { width: 100%; padding: 0.7rem; margin-bottom: 1rem; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; font-size: 1rem; }
+        #login button, .btn { padding: 0.7rem 1.5rem; background: var(--accent); color: var(--bg); border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.95rem; transition: opacity 0.2s; }
+        #login button:hover, .btn:hover { opacity: 0.85; }
+        .hidden { display: none !important; }
+        .error { color: var(--err); margin-top: 0.5rem; font-size: 0.9rem; }
+        .event-item { display: flex; align-items: center; gap: 0.8rem; padding: 0.6rem 1rem; border-bottom: 1px solid var(--border); font-family: monospace; font-size: 0.85rem; }
+        .event-item:last-child { border-bottom: none; }
+        .resp-1 { color: var(--ok); }
+        .resp-2 { color: var(--err); }
+        .trust-0 { color: var(--warn); }
+        .trust-1 { color: var(--ok); }
+        .trust-2 { color: var(--ok); }
+        .bar { height: 4px; background: var(--border); border-radius: 2px; margin-top: 0.5rem; overflow: hidden; }
+        .bar-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.5s; }
+        .section-title { font-size: 1.1rem; margin: 1.5rem 0 0.8rem; color: var(--accent2); }
+        .stat-row { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid var(--border); }
+        .stat-row:last-child { border-bottom: none; }
+        .stat-label { color: var(--muted); }
+        .stat-value { font-weight: 600; }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .pulse { animation: pulse 2s infinite; }
+    </style>
+</head>
+<body>
+    <div id="login">
+        <h1>🛡️ Vigile</h1>
+        <p style="color:var(--muted);margin-bottom:1.5rem">Zero Trust Application Control</p>
+        <input type="password" id="token" placeholder="Token administrateur" autocomplete="off">
+        <button onclick="login()">Se connecter</button>
+        <div class="error hidden" id="login-error">Token invalide</div>
+    </div>
+
+    <nav id="nav" class="hidden">
+        <h1>🛡️ Vigile</h1>
+        <a href="#" onclick="showPage('dashboard')" id="nav-dashboard">📊 Tableau de bord</a>
+        <a href="#" onclick="showPage('fapolicyd')" id="nav-fapolicyd">👁️ Observation</a>
+        <a href="#" onclick="showPage('audit')" id="nav-audit">📜 Journal d'audit</a>
+        <a href="#" onclick="showPage('about')" id="nav-about">ℹ️ À propos</a>
+        <div style="margin-top:2rem;padding-top:1rem;border-top:1px solid var(--border)">
+            <div style="font-size:0.75rem;color:var(--muted)">Agent v0.1.0</div>
+            <div style="font-size:0.75rem;color:var(--muted)" id="hostname"></div>
+        </div>
+    </nav>
+
+    <main id="main" class="hidden">
+        <!-- TABLEAU DE BORD -->
+        <div id="page-dashboard">
+            <h2>📊 Tableau de bord</h2>
+            <div class="grid" id="dashboard-cards"></div>
+            <div class="section-title">État des contrôles de sécurité</div>
+            <div class="card" id="security-status"></div>
+        </div>
+
+        <!-- OBSERVATION fapolicyd -->
+        <div id="page-fapolicyd" class="hidden">
+            <h2>👁️ Observation — fapolicyd</h2>
+            <div class="grid" id="fapolicyd-stats"></div>
+            <div class="section-title">Derniers événements détectés</div>
+            <div class="card" id="fapolicyd-events">
+                <p style="color:var(--muted)">Chargement…</p>
+            </div>
+        </div>
+
+        <!-- AUDIT -->
+        <div id="page-audit" class="hidden">
+            <h2>📜 Journal d'audit</h2>
+            <button class="btn" onclick="verifyChain()" style="margin-bottom:1rem">Vérifier l'intégrité de la chaîne</button>
+            <div id="verify-result" style="margin-bottom:1rem"></div>
+            <table>
+                <thead><tr><th>#</th><th>Horodatage</th><th>Acteur</th><th>Action</th><th>Cible</th><th>Résultat</th></tr></thead>
+                <tbody id="audit-body"></tbody>
+            </table>
+        </div>
+
+        <!-- À PROPOS -->
+        <div id="page-about" class="hidden">
+            <h2>ℹ️ À propos</h2>
+            <div class="card">
+                <p style="margin-bottom:1rem"><strong>Vigile</strong> est une plateforme libre de contrôle applicatif Zero Trust pour Linux.</p>
+                <div class="stat-row"><span class="stat-label">Licence</span><span class="stat-value">AGPL-3.0-or-later</span></div>
+                <div class="stat-row"><span class="stat-label">Dépôt</span><span class="stat-value"><a href="https://github.com/vigile-project/vigile" style="color:var(--accent)">GitHub</a></span></div>
+                <div class="stat-row"><span class="stat-label">Tests</span><span class="stat-value">237</span></div>
+                <div class="stat-row"><span class="stat-label">Phases couvertes</span><span class="stat-value">0 → 9</span></div>
+            </div>
+            <div class="section-title">Composants</div>
+            <div class="card">
+                <div class="stat-row"><span class="stat-label">vigile-agent</span><span class="stat-value">Inventaire, synchronisation (non privilégié)</span></div>
+                <div class="stat-row"><span class="stat-label">vigile-executor</span><span class="stat-value">Application des politiques (privilegié minimal)</span></div>
+                <div class="stat-row"><span class="stat-label">vigile-server</span><span class="stat-value">Plan de contrôle (API, audit, approbations)</span></div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let TOKEN = '';
+        const BASE = window.location.origin;
+
+        async function login() {
+            const token = document.getElementById('token').value.trim();
+            if (!token) return;
+            try {
+                const res = await fetch(BASE + '/admin/v1/status', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                if (!res.ok) {
+                    document.getElementById('login-error').classList.remove('hidden');
+                    return;
+                }
+                TOKEN = token;
+                sessionStorage.setItem('vigile-token', token);
+                document.getElementById('login').classList.add('hidden');
+                document.getElementById('nav').classList.remove('hidden');
+                document.getElementById('main').classList.remove('hidden');
+                loadDashboard();
+            } catch (e) {
+                const el = document.getElementById('login-error');
+                el.textContent = 'Erreur de connexion : ' + e.message;
+                el.classList.remove('hidden');
+            }
+        }
+
+        function showPage(name) {
+            for (const p of ['dashboard', 'fapolicyd', 'audit', 'about']) {
+                document.getElementById('page-' + p).classList.toggle('hidden', p !== name);
+                document.getElementById('nav-' + p).classList.toggle('active', p === name);
+            }
+            if (name === 'dashboard') loadDashboard();
+            if (name === 'fapolicyd') loadFapolicyd();
+            if (name === 'audit') loadAudit();
+        }
+
+        async function api(path) {
+            const res = await fetch(BASE + path, { headers: { 'Authorization': 'Bearer ' + TOKEN } });
+            if (!res.ok) throw new Error('API ' + res.status);
+            return res.json();
+        }
+
+        async function loadDashboard() {
+            try {
+                const d = await api('/admin/v1/status');
+                const fapActive = d.fapolicyd;
+                const cards = [
+                    { title: 'fapolicyd', value: fapActive ? 'Actif' : 'Inactif', icon: fapActive ? '✓' : '✗', cls: fapActive ? 'ok' : 'err', sub: 'Allowlisting' },
+                    { title: 'SELinux', value: d.selinux || '?', icon: d.selinux === 'Enforcing' ? '✓' : '⚠', cls: d.selinux === 'Enforcing' ? 'ok' : 'warn', sub: 'Contrôle d\\'accès' },
+                    { title: 'Pare-feu', value: d.firewalld ? 'Actif' : 'Inactif', icon: d.firewalld ? '✓' : '✗', cls: d.firewalld ? 'ok' : 'err', sub: 'firewalld' },
+                    { title: 'Paquets RPM', value: (d.packages || 0).toLocaleString(), icon: '📦', cls: 'info', sub: 'Installés' },
+                    { title: 'Événements', value: (d.fanotify || 0).toLocaleString(), icon: '👁️', cls: d.fanotify > 0 ? 'ok' : 'muted', sub: 'FANOTIFY totaux' },
+                    { title: 'Non trustés', value: (d.untrusted || 0).toLocaleString(), icon: '⚠️', cls: d.untrusted > 0 ? 'warn' : 'ok', sub: 'Accès hors RPM' },
+                ];
+
+                document.getElementById('dashboard-cards').innerHTML = cards.map(c => `
+                    <div class="card">
+                        <h3>${c.title}</h3>
+                        <div class="value"><span class="badge ${c.cls}">${c.icon} ${c.value}</span></div>
+                        <div class="sub">${c.sub}</div>
+                    </div>
+                `).join('');
+
+                const rows = [
+                    ['Allowlisting (fapolicyd)', fapActive ? 'Actif — observation' : 'Inactif', fapActive ? 'ok' : 'err'],
+                    ['SELinux', d.selinux || 'Inconnu', d.selinux === 'Enforcing' ? 'ok' : 'warn'],
+                    ['Pare-feu (firewalld)', d.firewalld ? 'Actif' : 'Inactif', d.firewalld ? 'ok' : 'err'],
+                    ['Mode fapolicyd', 'permissive = 0 (évaluation active)', 'info'],
+                    ['Politique', 'allow_audit perm=any (tout autorisé + loggé)', 'info'],
+                    ['Chaîne d\\'audit', d.audit_entries + ' entrées', d.audit_entries > 0 ? 'ok' : 'muted'],
+                ];
+                document.getElementById('security-status').innerHTML = rows.map(([label, value, cls]) => `
+                    <div class="stat-row">
+                        <span class="stat-label">${label}</span>
+                        <span class="stat-value"><span class="badge ${cls}">${value}</span></span>
+                    </div>
+                `).join('');
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function loadFapolicyd() {
+            try {
+                const d = await api('/admin/v1/fapolicyd');
+                const events = d.events || [];
+                const untrusted = events.filter(e => e.obj_trust === '0').length;
+
+                document.getElementById('fapolicyd-stats').innerHTML = `
+                    <div class="card">
+                        <h3>Événements récents</h3>
+                        <div class="value">${events.length}</div>
+                        <div class="sub">Derniers événements FANOTIFY</div>
+                    </div>
+                    <div class="card">
+                        <h3>Non trustés</h3>
+                        <div class="value" style="color:${untrusted > 0 ? 'var(--warn)' : 'var(--ok)'}">${untrusted}</div>
+                        <div class="sub">Fichiers hors RPM</div>
+                    </div>
+                    <div class="card">
+                        <h3>Trustés</h3>
+                        <div class="value" style="color:var(--ok)">${events.length - untrusted}</div>
+                        <div class="sub">Fichiers RPM vérifiés</div>
+                    </div>
+                `;
+
+                if (events.length === 0) {
+                    document.getElementById('fapolicyd-events').innerHTML =
+                        '<p style="color:var(--muted);text-align:center;padding:2rem">Aucun événement. Exécutez des programmes pour voir l\\'observation en action.</p>';
+                    return;
+                }
+
+                document.getElementById('fapolicyd-events').innerHTML = events.map(e => `
+                    <div class="event-item">
+                        <span class="resp-${e.resp}">${e.resp === '1' ? '✓' : '✗'}</span>
+                        <span class="trust-${e.obj_trust}">obj_trust=${e.obj_trust}</span>
+                        <span class="trust-${e.subj_trust}">subj_trust=${e.subj_trust}</span>
+                        <span style="color:var(--muted);flex:1">${e.raw.substring(0, 80)}…</span>
+                    </div>
+                `).join('');
+            } catch (e) {
+                document.getElementById('fapolicyd-events').innerHTML = '<p class="error">Erreur : ' + e.message + '</p>';
+            }
+        }
+
+        async function loadAudit() {
+            try {
+                const d = await api('/admin/v1/audit');
+                const rows = (d.entries || []).slice().reverse().map(e => `
+                    <tr>
+                        <td>${e.seq}</td>
+                        <td>${new Date(e.at_unix * 1000).toISOString().slice(0, 19)}</td>
+                        <td>${e.actor}</td>
+                        <td>${e.action}</td>
+                        <td>${e.target}</td>
+                        <td><span class="badge ${e.result === 'ok' ? 'ok' : 'err'}">${e.result}</span></td>
+                    </tr>
+                `).join('');
+                document.getElementById('audit-body').innerHTML = rows || '<tr><td colspan="6" style="text-align:center;color:var(--muted)">Aucune entrée</td></tr>';
+            } catch (e) {
+                document.getElementById('audit-body').innerHTML = '<tr><td colspan="6" class="error">' + e.message + '</td></tr>';
+            }
+        }
+
+        async function verifyChain() {
+            try {
+                const d = await api('/admin/v1/audit/verify');
+                const el = document.getElementById('verify-result');
+                el.innerHTML = d.valid
+                    ? `<span class="badge ok">✓ Valide — ${d.verified_entries} entrées vérifiées</span>`
+                    : `<span class="badge err">✗ Cassé à #${d.broken_at_seq}</span>`;
+                loadAudit();
+            } catch (e) {
+                document.getElementById('verify-result').innerHTML = '<span class="badge err">' + e.message + '</span>';
+            }
+        }
+
+        // Restaurer la session
+        const saved = sessionStorage.getItem('vigile-token');
+        if (saved) {
+            document.getElementById('token').value = saved;
+            login();
+        }
+        document.getElementById('token').addEventListener('keypress', e => {
+            if (e.key === 'Enter') login();
+        });
+    </script>
+</body>
+</html>

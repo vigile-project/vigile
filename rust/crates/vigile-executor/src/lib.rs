@@ -583,13 +583,17 @@ mod tests {
 
     // ------------------------------------------------------------ Commit + rollback (ISS-040)
 
+    // Valid fapolicyd rule syntax for tests (must pass fapolicyd-cli --check-rules)
+    const RULE_V1: &str = "allow_audit perm=execute all : all\n";
+    const RULE_V2: &str = "deny_audit perm=execute exe=/usr/bin/bash : all\n";
+
     #[test]
     fn commit_moves_staging_to_active() {
         let root = temp_root("commit");
         let mut exec = Executor::new(&root).unwrap();
         exec.stage(
             "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-            &[artifact("90-vigile.rules", "rule v1\n")],
+            &[artifact("90-vigile.rules", RULE_V1)],
         )
         .unwrap();
         exec.validate("fapolicyd", "check-rules").unwrap();
@@ -599,7 +603,7 @@ mod tests {
         assert!(root.join("active/90-vigile.rules").exists());
         assert_eq!(
             fs::read_to_string(root.join("active/90-vigile.rules")).unwrap(),
-            "rule v1\n"
+            RULE_V1
         );
         // Staging is empty.
         assert!(!root.join("staging/90-vigile.rules").exists());
@@ -624,7 +628,7 @@ mod tests {
         // Commit v1.
         exec.stage(
             "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-            &[artifact("rules.rules", "v1\n")],
+            &[artifact("rules.rules", RULE_V1)],
         )
         .unwrap();
         exec.commit().unwrap();
@@ -632,20 +636,20 @@ mod tests {
         // Commit v2.
         exec.stage(
             "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-            &[artifact("rules.rules", "v2\n")],
+            &[artifact("rules.rules", RULE_V2)],
         )
         .unwrap();
         exec.commit().unwrap();
         assert_eq!(
             fs::read_to_string(root.join("active/rules.rules")).unwrap(),
-            "v2\n"
+            RULE_V2
         );
 
         // Rollback → v1.
         exec.rollback().unwrap();
         assert_eq!(
             fs::read_to_string(root.join("active/rules.rules")).unwrap(),
-            "v1\n"
+            RULE_V1
         );
 
         let _ = fs::remove_dir_all(&root);
@@ -669,8 +673,8 @@ mod tests {
         exec.stage(
             "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             &[
-                artifact("rules.rules", "v1\n"),
-                artifact("trust", "hash1\n"),
+                artifact("rules.rules", RULE_V1),
+                artifact("trust.d/vigile", "/usr/bin/test 1234 abc\n"),
             ],
         )
         .unwrap();
@@ -681,8 +685,8 @@ mod tests {
         exec.stage(
             "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
             &[
-                artifact("rules.rules", "v2\n"),
-                artifact("trust", "hash2\n"),
+                artifact("rules.rules", RULE_V2),
+                artifact("trust.d/vigile", "/usr/bin/test 5678 def\n"),
             ],
         )
         .unwrap();
@@ -692,23 +696,26 @@ mod tests {
         exec.rollback().unwrap();
         assert_eq!(
             fs::read_to_string(root.join("active/rules.rules")).unwrap(),
-            "v1\n"
+            RULE_V1
         );
         assert_eq!(
-            fs::read_to_string(root.join("active/trust")).unwrap(),
-            "hash1\n"
+            fs::read_to_string(root.join("active/trust.d/vigile")).unwrap(),
+            "/usr/bin/test 1234 abc\n"
         );
 
         // Deploy v3 after rollback.
         exec.stage(
             "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-            &[artifact("rules.rules", "v3\n")],
+            &[artifact(
+                "rules.rules",
+                "allow perm=execute all : all trust=1\n",
+            )],
         )
         .unwrap();
         exec.commit().unwrap();
         assert_eq!(
             fs::read_to_string(root.join("active/rules.rules")).unwrap(),
-            "v3\n"
+            "allow perm=execute all : all trust=1\n"
         );
 
         let _ = fs::remove_dir_all(&root);
@@ -719,10 +726,16 @@ mod tests {
         let root = temp_root("multi-artifact");
         let mut exec = Executor::new(&root).unwrap();
         let artifacts = vec![
-            artifact("rules.d/10-base.rules", "# base\n"),
-            artifact("rules.d/20-app.rules", "# app\n"),
-            artifact("rules.d/90-terminal.rules", "deny perm=execute all : all\n"),
-            artifact("trust.d/vigile", "path size sha256\n"),
+            artifact(
+                "rules.d/10-base.rules",
+                "allow_audit perm=execute all : all trust=1\n",
+            ),
+            artifact("rules.d/20-app.rules", RULE_V2),
+            artifact(
+                "rules.d/90-terminal.rules",
+                "deny_audit perm=execute all : all\n",
+            ),
+            artifact("trust.d/vigile", "/usr/bin/test 1234 abc\n"),
         ];
         // Stage and commit directly (hash verification is at the policy
         // envelope level, not here — see note in stage()).
