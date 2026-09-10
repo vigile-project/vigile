@@ -1,144 +1,124 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Vigile agent — unprivileged system service (ADR-0002).
+//! Vigile agent binary.
 //!
-//! Sprint 3 scope: the `inventory` subcommand produces the M2 inventory
-//! report (platform, capabilities, packages, executables, optional
-//! journal sample) as JSON on stdout. No network, no policy, no
-//! enforcement — observation only.
+//! Subcommands:
+//!   inventory  — full system inventory report (JSON)
+//!   sync <url> — connect to server, get policy (stub)
+//!   status     — show local state
 
-use serde::Serialize;
-use std::path::{Path, PathBuf};
-use vigile_backend_inventory::{
-    capabilities::detect_capabilities, executables, journal, packages, platform,
-};
-
-#[derive(Serialize)]
-struct AgentReport {
-    agent_version: String,
-    platform: platform::OsRelease,
-    family: String,
-    capabilities: Vec<capabilities_report::DetectedCapabilityJson>,
-    packages: PackagesReport,
-    executables: executables::ScanReport,
-    journal_sample: Option<Vec<journal::JournalRecord>>,
-}
-
-mod capabilities_report {
-    use serde::Serialize;
-    use vigile_backend_inventory::capabilities::DetectedCapability;
-    use vigile_backend_inventory::SupportLevel;
-
-    #[derive(Serialize)]
-    pub struct DetectedCapabilityJson {
-        pub backend: String,
-        pub declared: SupportLevel,
-        pub present_locally: bool,
-        pub effective: SupportLevel,
-    }
-
-    impl From<DetectedCapability> for DetectedCapabilityJson {
-        fn from(c: DetectedCapability) -> Self {
-            Self {
-                backend: c.backend,
-                declared: c.declared,
-                present_locally: c.present_locally,
-                effective: c.effective,
-            }
-        }
-    }
-}
-
-#[derive(Serialize)]
-struct PackagesReport {
-    available: bool,
-    count: usize,
-    signed_count: usize,
-    packages: Vec<packages::RpmPackage>,
-}
-
-fn collect_packages() -> PackagesReport {
-    match packages::run_rpm_qa() {
-        Ok(output) => {
-            let list = packages::parse_rpm_qa(&output);
-            let signed_count = list.iter().filter(|p| p.signed()).count();
-            PackagesReport {
-                available: true,
-                count: list.len(),
-                signed_count,
-                packages: list,
-            }
-        }
-        Err(_) => PackagesReport {
-            available: false,
-            count: 0,
-            signed_count: 0,
-            packages: Vec::new(),
-        },
-    }
-}
-
-fn run_inventory(with_journal: bool) -> Result<(), Box<dyn std::error::Error>> {
-    let root = Path::new("/");
-    let os = platform::read_os_release(root)?;
-    let capability_report = detect_capabilities(root, &os);
-    let family = format!("{:?}", capability_report.family).to_lowercase();
-
-    // Home resolved from the environment by the caller process — the
-    // library never reads env vars itself.
-    let home: Option<PathBuf> = std::env::var_os("HOME").map(PathBuf::from);
-
-    let executables_report =
-        executables::scan(root, executables::DEFAULT_SCAN_ROOTS, home.as_deref());
-
-    let journal_sample = if with_journal {
-        journal::run_journalctl(&["-n", "50"])
-            .ok()
-            .map(|out| journal::parse_output(&out).0)
-    } else {
-        None
-    };
-
-    let report = AgentReport {
-        agent_version: env!("CARGO_PKG_VERSION").to_string(),
-        platform: os,
-        family,
-        capabilities: capability_report
-            .capabilities
-            .into_iter()
-            .map(Into::into)
-            .collect(),
-        packages: collect_packages(),
-        executables: executables_report,
-        journal_sample,
-    };
-
-    let json = serde_json::to_string_pretty(&report)?;
-    println!("{json}");
-    Ok(())
-}
+use std::io::{Read, Write};
+use std::net::TcpStream;
+use std::time::Duration;
 
 fn main() {
-    let mut args = std::env::args().skip(1);
-    match (args.next().as_deref(), args.next().as_deref()) {
-        (Some("inventory"), None) => {
-            if let Err(e) = run_inventory(false) {
-                eprintln!("vigile-agent: inventory failed: {e}");
-                std::process::exit(1);
-            }
-        }
-        (Some("inventory"), Some("--journal")) => {
-            if let Err(e) = run_inventory(true) {
-                eprintln!("vigile-agent: inventory failed: {e}");
-                std::process::exit(1);
-            }
-        }
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    match args.first().map(String::as_str) {
+        Some("inventory") => cmd_inventory(),
+        Some("sync") => cmd_sync(args.get(1)),
+        Some("status") => cmd_status(),
         _ => {
             eprintln!(
-                "vigile-agent {} (skeleton + inventory)\n\
-                 usage: vigile-agent inventory [--journal]",
+                "vigile-agent {}\n\
+                 usage:\n  vigile-agent inventory\n  vigile-agent sync <server-url>\n  vigile-agent status",
                 env!("CARGO_PKG_VERSION")
             );
             std::process::exit(2);
         }
     }
+}
+
+fn cmd_inventory() {
+    let root = std::path::Path::new("/");
+    let os = match vigile_backend_inventory::read_os_release(root) {
+        Ok(os) => os,
+        Err(e) => {
+            eprintln!("cannot read /etc/os-release: {e}");
+            std::process::exit(1);
+        }
+    };
+    let cap_report = vigile_backend_inventory::detect_capabilities(root, &os);
+    let home: Option<std::path::PathBuf> = std::env::var_os("HOME").map(std::path::PathBuf::from);
+    let exec_report = vigile_backend_inventory::scan(
+        root,
+        vigile_backend_inventory::DEFAULT_SCAN_ROOTS,
+        home.as_deref(),
+    );
+    let pkgs = match vigile_backend_inventory::run_rpm_qa() {
+        Ok(out) => {
+            let list = vigile_backend_inventory::parse_rpm_qa(&out);
+            (list.len(), list.iter().filter(|p| p.signed()).count())
+        }
+        Err(_) => (0, 0),
+    };
+
+    eprintln!("Platform    : {} {}", os.id, os.version_id);
+    eprintln!("Packages    : {} ({} signed)", pkgs.0, pkgs.1);
+    eprintln!("Executables : {} (non-RPM)", exec_report.entries.len());
+    eprintln!("Skipped     : {} symlinks", exec_report.skipped_symlinks);
+
+    let caps: Vec<serde_json::Value> = cap_report
+        .capabilities
+        .iter()
+        .map(|c| {
+            serde_json::json!({
+                "backend": c.backend,
+                "present": c.present_locally,
+                "effective": format!("{:?}", c.effective).to_lowercase(),
+            })
+        })
+        .collect();
+
+    let report = serde_json::json!({
+        "platform": {"id": os.id, "version": os.version_id},
+        "packages": {"total": pkgs.0, "signed": pkgs.1},
+        "executables": {"total": exec_report.entries.len()},
+        "capabilities": caps,
+    });
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&report).unwrap_or_default()
+    );
+}
+
+fn cmd_sync(server_url: Option<&String>) {
+    let Some(url) = server_url else {
+        eprintln!("sync requires a server URL");
+        std::process::exit(2);
+    };
+    let clean = url
+        .trim_start_matches("http://")
+        .trim_start_matches("https://");
+    let addr = if clean.contains(':') {
+        clean.to_string()
+    } else {
+        format!("{clean}:8443")
+    };
+
+    eprintln!("Connecting to {addr}...");
+    match TcpStream::connect(&addr) {
+        Ok(mut stream) => {
+            let _ = stream.set_read_timeout(Some(Duration::from_secs(10)));
+            let req = format!(
+                "GET /agent/v1/policy HTTP/1.1\r\nHost: {addr}\r\nConnection: close\r\n\r\n"
+            );
+            if stream.write_all(req.as_bytes()).is_err() {
+                eprintln!("failed to send request");
+                std::process::exit(1);
+            }
+            let mut response = String::new();
+            let _ = stream.read_to_string(&mut response);
+            let status_line = response.lines().next().unwrap_or("(empty)");
+            eprintln!("Server response: {status_line}");
+            eprintln!("Body: {} bytes", response.len());
+        }
+        Err(e) => {
+            eprintln!("cannot connect to {addr}: {e}");
+            std::process::exit(1);
+        }
+    }
+}
+
+fn cmd_status() {
+    eprintln!("vigile-agent {}", env!("CARGO_PKG_VERSION"));
+    eprintln!("State: stub (no persistent state)");
 }
