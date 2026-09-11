@@ -48,6 +48,8 @@ fn main() {
                     serve_portal(&mut stream);
                 } else if let Some(rest) = path.strip_prefix("/admin/v1/") {
                     handle_admin(&mut stream, &request, &mut st, rest, method);
+                } else if method == "GET" && path == "/agent/v1/policy" {
+                    serve_policy(&mut stream, &st);
                 } else {
                     let _ = vigile_server::routes::route(&mut stream, &request, &mut st, None);
                 }
@@ -73,6 +75,27 @@ fn serve_portal(stream: &mut TcpStream) {
         "text/html; charset=utf-8",
         html.as_bytes(),
     );
+}
+
+fn serve_policy(stream: &mut TcpStream, state: &vigile_server::ServerState) {
+    use vigile_server::http::write_json;
+    match &state.deployed_policy {
+        Some(p) => {
+            let response = serde_json::json!({
+                "available": true,
+                "policy_id": p.policy_id,
+                "version": p.version,
+                "rules": p.rules,
+                "manifest": serde_json::from_str::<serde_json::Value>(&p.manifest_json)
+                    .unwrap_or(serde_json::json!({})),
+                "deployed_at": p.deployed_at_unix,
+            });
+            let _ = write_json(stream, 200, "OK", &serde_json::to_string(&response).unwrap_or_default());
+        }
+        None => {
+            let _ = write_json(stream, 200, "OK", "{\"available\":false}");
+        }
+    }
 }
 
 fn handle_admin(
@@ -189,6 +212,25 @@ fn handle_admin(
                     state
                         .audit
                         .append("admin", "policy.compiled", "policy", "ok");
+                    // Store the compiled policy for agent download
+                    if let Some(rules) = result.get("rules").and_then(|r| r.as_str()) {
+                        let manifest = result
+                            .get("manifest")
+                            .cloned()
+                            .unwrap_or(serde_json::json!({}));
+                        state.deployed_policy =
+                            Some(vigile_server::state::DeployedPolicy {
+                                policy_id: "current".to_string(),
+                                version: 1,
+                                rules: rules.to_string(),
+                                manifest_json: serde_json::to_string(&manifest)
+                                    .unwrap_or_default(),
+                                deployed_at_unix: std::time::SystemTime::now()
+                                    .duration_since(std::time::UNIX_EPOCH)
+                                    .map(|d| d.as_secs() as i64)
+                                    .unwrap_or(0),
+                            });
+                    }
                     let _ = write_json(
                         stream,
                         200,

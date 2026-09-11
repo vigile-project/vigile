@@ -21,9 +21,21 @@ pub struct ServerState {
     pub admin_auth: TokenAuth,
     /// Audit journal (append-only, hash-chained).
     pub audit: AuditJournal,
+    /// Latest compiled policy (rules + manifest) available to agents.
+    pub deployed_policy: Option<DeployedPolicy>,
     /// PostgreSQL-backed agent registry (None = in-memory fallback for
     /// tests without a database).
     pub store: Option<PgStore>,
+}
+
+/// A compiled policy ready for agent download.
+#[derive(Debug, Clone)]
+pub struct DeployedPolicy {
+    pub policy_id: String,
+    pub version: u64,
+    pub rules: String,
+    pub manifest_json: String,
+    pub deployed_at_unix: i64,
 }
 
 impl ServerState {
@@ -64,6 +76,7 @@ impl ServerState {
             envelope_verifier,
             admin_auth,
             audit: AuditJournal::new(),
+            deployed_policy: None,
             store: None,
         };
 
