@@ -17,7 +17,11 @@
 
 use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::net::TcpStream;
+
+/// Anything the handlers can talk to: plain TCP or a TLS stream.
+/// Blanket-implemented for every `Read + Write` type.
+pub trait Stream: Read + Write {}
+impl<T: Read + Write> Stream for T {}
 
 pub const MAX_HEADER_BYTES: usize = 16 * 1024;
 pub const MAX_BODY_BYTES: usize = 16 * 1024 * 1024;
@@ -75,7 +79,7 @@ impl From<std::io::Error> for ParseError {
 
 /// Reads from a stream until `\r\n\r\n`, then reads the body per
 /// Content-Length. Returns the parsed request.
-pub fn parse_request(stream: &mut TcpStream) -> Result<Request, ParseError> {
+pub fn parse_request(stream: &mut dyn Stream) -> Result<Request, ParseError> {
     // --- Read headers until CRLFCRLF ---
     let mut header_buf = Vec::with_capacity(1024);
     let mut byte = [0u8; 1];
@@ -171,7 +175,7 @@ pub fn parse_request(stream: &mut TcpStream) -> Result<Request, ParseError> {
 
 /// Writes a simple HTTP/1.1 response.
 pub fn write_response(
-    stream: &mut TcpStream,
+    stream: &mut dyn Stream,
     status: u16,
     reason: &str,
     content_type: &str,
@@ -188,7 +192,7 @@ pub fn write_response(
 
 /// Convenience: JSON response.
 pub fn write_json(
-    stream: &mut TcpStream,
+    stream: &mut dyn Stream,
     status: u16,
     reason: &str,
     json: &str,
@@ -197,7 +201,7 @@ pub fn write_json(
 }
 
 /// Maps a ParseError to the appropriate HTTP status + reason.
-pub fn error_response(stream: &mut TcpStream, e: &ParseError) -> std::io::Result<()> {
+pub fn error_response(stream: &mut dyn Stream, e: &ParseError) -> std::io::Result<()> {
     let (status, reason) = match e {
         ParseError::ConnectionClosed => return Ok(()), // peer went away
         ParseError::BadRequest(_) => (400, "Bad Request"),

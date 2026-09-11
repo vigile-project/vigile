@@ -16,13 +16,13 @@
 use crate::auth::{bearer_from_headers, AdminRole, TokenAuth};
 use crate::http::{write_json, Request};
 use crate::state::ServerState;
-use std::net::TcpStream;
+use crate::http::Stream;
 use std::time::SystemTime;
 use vigile_pki::{process_enrollment, EnrollmentRequest, MessageEnvelope};
 
 /// Routes a request to the appropriate handler.
 pub fn route(
-    stream: &mut TcpStream,
+    stream: &mut dyn Stream,
     request: &Request,
     state: &mut ServerState,
     agent_id: Option<&str>,
@@ -58,7 +58,7 @@ pub fn route(
 // ------------------------------------------------------------------
 
 fn route_admin(
-    stream: &mut TcpStream,
+    stream: &mut dyn Stream,
     request: &Request,
     state: &mut ServerState,
 ) -> std::io::Result<()> {
@@ -137,7 +137,7 @@ fn route_admin(
     }
 }
 
-fn handle_admin_status(stream: &mut TcpStream, state: &mut ServerState) -> std::io::Result<()> {
+fn handle_admin_status(stream: &mut dyn Stream, state: &mut ServerState) -> std::io::Result<()> {
     let response = serde_json::json!({
         "status": "ok",
         "audit_entries": state.audit.entries().len(),
@@ -147,7 +147,7 @@ fn handle_admin_status(stream: &mut TcpStream, state: &mut ServerState) -> std::
     write_json(stream, 200, "OK", &body)
 }
 
-fn handle_admin_audit(stream: &mut TcpStream, state: &mut ServerState) -> std::io::Result<()> {
+fn handle_admin_audit(stream: &mut dyn Stream, state: &mut ServerState) -> std::io::Result<()> {
     let entries: Vec<crate::audit::AuditEntry> = state.audit.entries().to_vec();
     let response = serde_json::json!({
         "count": entries.len(),
@@ -159,7 +159,7 @@ fn handle_admin_audit(stream: &mut TcpStream, state: &mut ServerState) -> std::i
 }
 
 fn handle_admin_audit_verify(
-    stream: &mut TcpStream,
+    stream: &mut dyn Stream,
     state: &mut ServerState,
     actor: &str,
 ) -> std::io::Result<()> {
@@ -194,7 +194,7 @@ fn handle_admin_audit_verify(
 }
 
 fn handle_admin_issue_token(
-    stream: &mut TcpStream,
+    stream: &mut dyn Stream,
     request: &Request,
     state: &mut ServerState,
     actor: &str,
@@ -254,7 +254,7 @@ struct EnrollWire {
 }
 
 fn handle_enroll(
-    stream: &mut TcpStream,
+    stream: &mut dyn Stream,
     request: &Request,
     state: &mut ServerState,
 ) -> std::io::Result<()> {
@@ -332,7 +332,7 @@ fn handle_enroll(
 }
 
 fn handle_heartbeat(
-    stream: &mut TcpStream,
+    stream: &mut dyn Stream,
     request: &Request,
     state: &mut ServerState,
     _agent_id: &str,
@@ -367,7 +367,7 @@ fn handle_heartbeat(
 }
 
 fn handle_policy(
-    stream: &mut TcpStream,
+    stream: &mut dyn Stream,
     state: &mut ServerState,
     agent_id: &str,
 ) -> std::io::Result<()> {

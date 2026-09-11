@@ -72,6 +72,32 @@ pub fn server_config(
     Ok(Arc::new(config))
 }
 
+/// Server-side TLS config with **optional** client certificates: browsers
+/// reach the portal anonymously, but agent endpoints must check
+/// `peer_certificates()` themselves and refuse `None` (single-port lab
+/// deployment). When present, the certificate must still chain to the
+/// Vigile hierarchy — no third-party credential is accepted.
+pub fn server_config_optional_client(
+    server: &IssuedCertificate,
+    ca: &CaHierarchy,
+) -> Result<Arc<ServerConfig>, PkiError> {
+    let leaf_crl = ca.leaf_crl(1, &[])?;
+    let intermediate_crl = ca.intermediate_crl(1, &[])?;
+    let verifier = WebPkiClientVerifier::builder(trust_store(ca)?.into())
+        .with_crls(vec![
+            CertificateRevocationListDer::from(leaf_crl),
+            CertificateRevocationListDer::from(intermediate_crl),
+        ])
+        .allow_unauthenticated()
+        .build()
+        .map_err(|e| PkiError::CertificateIssuance(format!("client verifier: {e}")))?;
+    let config = ServerConfig::builder()
+        .with_client_cert_verifier(verifier)
+        .with_single_cert(server.chain.clone(), private_key(&server.private_key_der)?)
+        .map_err(|e| PkiError::CertificateIssuance(format!("server cert rejected: {e}")))?;
+    Ok(Arc::new(config))
+}
+
 /// Agent-side mTLS config: presents `agent` (clientAuth EKU, CN = agent id)
 /// and trusts only the Vigile hierarchy for the server certificate.
 pub fn agent_client_config(

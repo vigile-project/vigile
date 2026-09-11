@@ -2,10 +2,11 @@
 //! Vigile server binary — serves the admin API, web portal, and agent API.
 //!
 //! Run: vigile-server [port] (default 8443)
-//! Portal: http://127.0.0.1:<port>/
-//! Admin API: http://127.0.0.1:<port>/admin/v1/*
+//! Portal: https://127.0.0.1:<port>/  (self-signed lab CA — browser warning expected)
+//! Admin API: https://127.0.0.1:<port>/admin/v1/*
+//! Agent API: https://127.0.0.1:<port>/agent/v1/* (client certificate REQUIRED)
 
-use std::net::{TcpListener, TcpStream};
+use std::net::TcpListener;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -23,45 +24,84 @@ fn main() {
         }
     };
 
+    // Lab PKI: fresh hierarchy per run until ISS-089 persists it on disk.
+    let (tls_config, ca) = {
+        let ca = match vigile_pki::CaHierarchy::generate("Vigile Lab Root", "Vigile Lab Issuer") {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("vigile-server: cannot generate lab PKI: {e}");
+                std::process::exit(1);
+            }
+        };
+        let server_cert = match ca.issue_server_certificate("localhost") {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("vigile-server: cannot issue server certificate: {e}");
+                std::process::exit(1);
+            }
+        };
+        match vigile_pki::mtls::server_config_optional_client(&server_cert, &ca) {
+            Ok(cfg) => (cfg, ca),
+            Err(e) => {
+                eprintln!("vigile-server: cannot build TLS config: {e}");
+                std::process::exit(1);
+            }
+        }
+    };
+
     let listener = TcpListener::bind(format!("127.0.0.1:{port}")).unwrap_or_else(|e| {
         eprintln!("vigile-server: cannot bind 127.0.0.1:{port}: {e}");
         std::process::exit(1);
     });
 
     eprintln!();
-    eprintln!("  Vigile  http://127.0.0.1:{port}/");
+    eprintln!("  Vigile  https://127.0.0.1:{port}/");
+    eprintln!("  Agent enrolment (lab): issue an agent certificate with the");
+    eprintln!("  in-memory CA and present it — /agent/v1/* requires mTLS.");
     eprintln!();
     eprintln!("  Press Ctrl+C to stop.");
     eprintln!();
 
-    for stream in listener.incoming() {
-        let Ok(mut stream) = stream else { continue };
-        let Ok(mut st) = state.lock() else { continue };
-        let _ = stream.set_read_timeout(Some(Duration::from_secs(10)));
+    // Keep the CA alive for the lifetime of the process (agent enrolment
+    // helper reads it); the TLS config already holds what it needs.
+    let _ca_anchor = &ca;
 
-        match vigile_server::http::parse_request(&mut stream) {
+    for stream in listener.incoming() {
+        let Ok(sock) = stream else { continue };
+        let _ = sock.set_read_timeout(Some(Duration::from_secs(10)));
+        let conn = match rustls::ServerConnection::new(tls_config.clone()) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        let mut tls = rustls::StreamOwned { conn, sock };
+
+        let agent_authenticated = tls.conn.peer_certificates().is_some();
+
+        let Ok(mut st) = state.lock() else { continue };
+
+        match vigile_server::http::parse_request(&mut tls) {
             Ok(request) => {
                 let path = request.path.as_str();
                 let method = request.method.as_str();
 
                 if method == "GET" && (path == "/" || path == "/index.html") {
-                    serve_portal(&mut stream);
+                    serve_portal(&mut tls);
                 } else if let Some(rest) = path.strip_prefix("/admin/v1/") {
-                    handle_admin(&mut stream, &request, &mut st, rest, method);
+                    handle_admin(&mut tls, &request, &mut st, rest, method);
                 } else if method == "GET" && path == "/agent/v1/policy" {
-                    serve_policy(&mut stream, &st);
+                    serve_policy(&mut tls, &mut st, agent_authenticated);
                 } else {
-                    let _ = vigile_server::routes::route(&mut stream, &request, &mut st, None);
+                    let _ = vigile_server::routes::route(&mut tls, &request, &mut st, None);
                 }
             }
             Err(e) => {
-                let _ = vigile_server::http::error_response(&mut stream, &e);
+                let _ = vigile_server::http::error_response(&mut tls, &e);
             }
         }
     }
 }
 
-fn serve_portal(stream: &mut TcpStream) {
+fn serve_portal(stream: &mut dyn vigile_server::http::Stream) {
     let html = std::fs::read_to_string("web/index.html")
         .or_else(|_| std::fs::read_to_string("../web/index.html"))
         .or_else(|_| std::fs::read_to_string("/usr/share/vigile/web/index.html"))
@@ -77,8 +117,24 @@ fn serve_portal(stream: &mut TcpStream) {
     );
 }
 
-fn serve_policy(stream: &mut TcpStream, state: &vigile_server::ServerState) {
+fn serve_policy(
+    stream: &mut dyn vigile_server::http::Stream,
+    state: &mut vigile_server::ServerState,
+    agent_authenticated: bool,
+) {
     use vigile_server::http::write_json;
+    if !agent_authenticated {
+        state
+            .audit
+            .append("anonymous", "agent.policy-denied", "agent-api", "unauthenticated");
+        let _ = write_json(
+            stream,
+            401,
+            "Unauthorized",
+            "{\"error\":\"agent authentication required (mTLS)\"}",
+        );
+        return;
+    }
     match &state.deployed_policy {
         Some(p) => {
             let response = serde_json::json!({
@@ -99,7 +155,7 @@ fn serve_policy(stream: &mut TcpStream, state: &vigile_server::ServerState) {
 }
 
 fn handle_admin(
-    stream: &mut TcpStream,
+    stream: &mut dyn vigile_server::http::Stream,
     request: &vigile_server::http::Request,
     state: &mut vigile_server::ServerState,
     path: &str,
