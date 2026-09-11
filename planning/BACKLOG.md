@@ -190,8 +190,9 @@ détectée + 7 tests). 157 tests workspace verts, clippy 0.
 ISS-052..059 : USBGuard (phase 4) ; ISS-060..066 : Debian/Ubuntu+AppArmor
 (phase 5) ; ISS-067..072 : SELinux (phase 6) ; ISS-073..076 : réseau (phase
 7) ; ISS-077..080 : élévation (phase 8) ; ISS-081..086 : NixOS (phase 9) ;
-ISS-087..093 : qualification production (phase 10). Détail à figer à l'entrée
-de chaque phase (les documents `docs/` fixent déjà les exigences).
+ISS-087..093 : qualification production (phase 10) — **détaillées dans
+SPRINT_12.md** (mTLS effectif, règles signées, persistance/secrets serveur,
+revue sécurité complète, fuzz/charge, DR, RC 0.1.0-rc1).
 
 ## Risques bloquants (extrait — voir RISKS.md)
 
