@@ -13,6 +13,7 @@ pub mod adapters;
 pub mod ca;
 pub mod enrollment;
 pub mod envelope;
+pub mod mtls;
 pub mod registry;
 
 pub use ca::{certificate_expiry, should_renew, CaHierarchy, IssuedCertificate};
