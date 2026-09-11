@@ -98,6 +98,9 @@ pre{background:var(--surface);padding:1rem;border-radius:6px;overflow-x:auto;fon
 <div class="rules-output" id="rules-output"></div>
 <div class="section-title">Manifeste</div>
 <pre id="manifest-output"></pre>
+<div class="section-title">Deploiement (agent pull)</div>
+<p style="color:var(--muted);font-size:.85rem">La politique est servie sur <code>GET /agent/v1/policy</code>. Sur chaque hote gere :</p>
+<pre id="deploy-hint"></pre>
 </div>
 </div>
 <div id="page-audit" class="hidden">
@@ -176,6 +179,7 @@ document.getElementById('compile-result').innerHTML='<span class="badge ok">Comp
 document.getElementById('compile-output').classList.remove('hidden');
 document.getElementById('rules-output').textContent=result.data.rules||'';
 document.getElementById('manifest-output').textContent=JSON.stringify(result.data.manifest,null,2);
+document.getElementById('deploy-hint').textContent='sudo vigile-agent deploy '+window.location.host;
 loadAudit();})
 .catch(function(e){document.getElementById('compile-result').innerHTML='<span class="badge err">Erreur : '+e.message+'</span>';});}
 function loadAudit(){api('/admin/v1/audit').then(function(d){
