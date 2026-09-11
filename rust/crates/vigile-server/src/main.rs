@@ -54,10 +54,31 @@ fn main() {
         std::process::exit(1);
     });
 
+    // Lab-only agent provisioning: export one agent identity so the mTLS
+    // pipeline can be exercised end-to-end. The real enrollment flow
+    // (tokens + CSR) replaces this in ISS-089.
+    {
+        let lab_dir = std::path::Path::new("/tmp/vigile-lab");
+        if let Ok(agent_cert) = ca.issue_agent_certificate("agent-lab-001") {
+            let wrote = std::fs::create_dir_all(lab_dir).is_ok()
+                && std::fs::write(lab_dir.join("agent-leaf.der"), agent_cert.certificate.as_ref())
+                    .is_ok()
+                && std::fs::write(lab_dir.join("agent-key.der"), &agent_cert.private_key_der)
+                    .is_ok()
+                && std::fs::write(lab_dir.join("ca-root.der"), ca.root_cert().as_ref()).is_ok()
+                && std::fs::write(lab_dir.join("ca-inter.der"), ca.intermediate_cert().as_ref())
+                    .is_ok();
+            if wrote {
+                eprintln!("  Lab agent identity: /tmp/vigile-lab (agent-lab-001)");
+            } else {
+                eprintln!("  WARNING: could not write lab agent identity to /tmp/vigile-lab");
+            }
+        }
+    }
+
     eprintln!();
     eprintln!("  Vigile  https://127.0.0.1:{port}/");
-    eprintln!("  Agent enrolment (lab): issue an agent certificate with the");
-    eprintln!("  in-memory CA and present it — /agent/v1/* requires mTLS.");
+    eprintln!("  Agent API requires mTLS; lab identity in /tmp/vigile-lab.");
     eprintln!();
     eprintln!("  Press Ctrl+C to stop.");
     eprintln!();

@@ -7,7 +7,6 @@
 //!   deploy <url>      — download + validate + deploy policy to fapolicyd
 //!   status            — show local state
 
-use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::path::Path;
 use std::process::Command;
@@ -32,14 +31,50 @@ fn main() {
 }
 
 fn http_get(url: &str, path: &str) -> Result<String, String> {
+    use std::io::{Read, Write};
+    use std::sync::Arc;
+
     let clean = url.trim_start_matches("http://").trim_start_matches("https://");
     let addr = if clean.contains(':') { clean.to_string() } else { format!("{clean}:8443") };
-    let mut stream = TcpStream::connect(&addr).map_err(|e| format!("connect {addr}: {e}"))?;
-    let _ = stream.set_read_timeout(Some(Duration::from_secs(10)));
-    let req = format!("GET {path} HTTP/1.1\r\nHost: {addr}\r\nConnection: close\r\n\r\n");
-    stream.write_all(req.as_bytes()).map_err(|e| format!("send: {e}"))?;
+    let sock = TcpStream::connect(&addr).map_err(|e| format!("connect {addr}: {e}"))?;
+    let _ = sock.set_read_timeout(Some(Duration::from_secs(10)));
+
+    // mTLS identity. Lab provisioning: the server exports /tmp/vigile-lab at
+    // startup (VIGILE_IDENTITY_DIR overrides). Real enrollment: ISS-089.
+    let dir = std::env::var_os("VIGILE_IDENTITY_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::PathBuf::from("/tmp/vigile-lab"));
+    let read_file = |name: &str| {
+        std::fs::read(dir.join(name))
+            .map_err(|e| format!("identity file {name}: {e} — is vigile-server running?"))
+    };
+    let leaf = rustls::pki_types::CertificateDer::from(read_file("agent-leaf.der")?);
+    let intermediate =
+        rustls::pki_types::CertificateDer::from(read_file("ca-inter.der")?);
+    let key = rustls::pki_types::PrivateKeyDer::try_from(read_file("agent-key.der")?)
+        .map_err(|e| format!("agent key: {e}"))?;
+    let mut roots = rustls::RootCertStore::empty();
+    for name in ["ca-root.der", "ca-inter.der"] {
+        let der = rustls::pki_types::CertificateDer::from(read_file(name)?);
+        roots.add(der).map_err(|e| format!("trust {name}: {e}"))?;
+    }
+    let config = rustls::ClientConfig::builder()
+        .with_root_certificates(roots)
+        .with_client_auth_cert(vec![leaf, intermediate], key)
+        .map_err(|e| format!("agent certificate rejected: {e}"))?;
+
+    // Lab convention: the server certificate carries SAN "localhost" even
+    // when dialing 127.0.0.1, so the TLS name stays "localhost".
+    let name = rustls::pki_types::ServerName::try_from("localhost")
+        .map_err(|e| format!("server name: {e}"))?;
+    let conn = rustls::ClientConnection::new(Arc::new(config), name)
+        .map_err(|e| format!("TLS setup: {e}"))?;
+    let mut tls = rustls::StreamOwned { conn, sock };
+
+    let req = format!("GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+    tls.write_all(req.as_bytes()).map_err(|e| format!("send: {e}"))?;
     let mut response = String::new();
-    stream.read_to_string(&mut response).map_err(|e| format!("read: {e}"))?;
+    tls.read_to_string(&mut response).map_err(|e| format!("read: {e}"))?;
     Ok(response)
 }
 
