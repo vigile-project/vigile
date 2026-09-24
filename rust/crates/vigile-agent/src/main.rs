@@ -74,8 +74,12 @@ fn http_get(url: &str, path: &str) -> Result<String, String> {
     let req = format!("GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
     tls.write_all(req.as_bytes()).map_err(|e| format!("send: {e}"))?;
     let mut response = String::new();
-    tls.read_to_string(&mut response).map_err(|e| format!("read: {e}"))?;
-    Ok(response)
+    // Connection: close — tolerate EOF with or without TLS close_notify.
+    match tls.read_to_string(&mut response) {
+        Ok(_) => Ok(response),
+        Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => Ok(response),
+        Err(e) => Err(format!("read: {e}")),
+    }
 }
 
 fn extract_json_body(response: &str) -> Option<&str> {

@@ -10,6 +10,8 @@ use std::net::TcpListener;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+
+
 fn main() {
     let port: u16 = std::env::args()
         .nth(1)
@@ -96,14 +98,16 @@ fn main() {
         };
         let mut tls = rustls::StreamOwned { conn, sock };
 
-        let agent_authenticated = tls.conn.peer_certificates().is_some();
-
         let Ok(mut st) = state.lock() else { continue };
 
         match vigile_server::http::parse_request(&mut tls) {
             Ok(request) => {
                 let path = request.path.as_str();
                 let method = request.method.as_str();
+
+                // The TLS handshake runs inside parse_request (first read);
+                // peer identity is only meaningful afterwards.
+                let agent_authenticated = tls.conn.peer_certificates().is_some();
 
                 if method == "GET" && (path == "/" || path == "/index.html") {
                     serve_portal(&mut tls);
@@ -119,6 +123,11 @@ fn main() {
                 let _ = vigile_server::http::error_response(&mut tls, &e);
             }
         }
+
+        // Clean TLS shutdown so peers see a proper end-of-stream.
+
+        let rustls::StreamOwned { mut conn, mut sock } = tls;
+        let _ = conn.write_tls(&mut sock);
     }
 }
 
