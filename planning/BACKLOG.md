@@ -194,6 +194,16 @@ ISS-087..093 : qualification production (phase 10) — **détaillées dans
 SPRINT_12.md** (mTLS effectif, règles signées, persistance/secrets serveur,
 revue sécurité complète, fuzz/charge, DR, RC 0.1.0-rc1).
 
+## Phase 10 — écarts de revue sécurité (ISS-090, 2026-09-24)
+
+| Issue | Objet | Priorité | Conditionne |
+|---|---|---|---|
+| ISS-090-1 | Jetons admin depuis config/secrets (plus de génération/impression au démarrage) | P1 | enforcing |
+| ISS-090-2 | Épinglage d'empreinte CA pour le bootstrap d'enrôlement | P2 | — |
+| ISS-090-3 | Registre agents + CRL réelles câblées au verifier TLS | P1 | enforcing |
+| ISS-090-4 | FAILURE_MODES §4 : modes de persistance | P2 | — |
+| ISS-090-5 | README : https + avertissement certificat labo | P3 | — |
+
 ## Risques bloquants (extrait — voir RISKS.md)
 
 - DEC-02/03 non tranchées → ISS-001/004 bloqués.
