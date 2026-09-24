@@ -86,6 +86,56 @@ fn extract_json_body(response: &str) -> Option<&str> {
     response.split("\r\n\r\n").nth(1)
 }
 
+fn hex_decode(s: &str) -> Option<Vec<u8>> {
+    let s = s.trim();
+    if !s.len().is_multiple_of(2) {
+        return None;
+    }
+    (0..s.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(s.get(i..i + 2)?, 16).ok())
+        .collect()
+}
+
+fn hex_encode(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// Ed25519 verification of the served rules against the deployment-signing
+/// public key (hex). Any mismatch => false (ISS-088, fail-closed).
+fn verify_rules_signature(rules: &str, sig_hex: &str, pub_hex: &str) -> bool {
+    let Some(sig_bytes) = hex_decode(sig_hex) else { return false };
+    let Some(pub_bytes) = hex_decode(pub_hex) else { return false };
+    let Ok(pub_arr) = <[u8; 32]>::try_from(pub_bytes.as_slice()) else { return false };
+    let Ok(vk) = ed25519_dalek::VerifyingKey::from_bytes(&pub_arr) else { return false };
+    let Ok(sig) = ed25519_dalek::Signature::from_slice(&sig_bytes) else { return false };
+    // verify_strict is inherent (no `signature` trait import needed) and
+    // rejects malleable signatures.
+    vk.verify_strict(rules.as_bytes(), &sig).is_ok()
+}
+
+/// SHA-256 of the rules must match the first artifact hash in the manifest.
+fn verify_rules_sha256(rules: &str, manifest: &serde_json::Value) -> bool {
+    use sha2::{Digest, Sha256};
+    let Some(expected) = manifest
+        .get("artifacts")
+        .and_then(|a| a.get(0))
+        .and_then(|a| a.get("sha256"))
+        .and_then(|h| h.as_str())
+        .map(str::trim)
+    else {
+        return false;
+    };
+    let digest = Sha256::digest(rules.as_bytes());
+    expected == hex_encode(&digest)
+}
+
+fn identity_dir() -> std::path::PathBuf {
+    std::env::var_os("VIGILE_IDENTITY_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::PathBuf::from("/tmp/vigile-lab"))
+}
+
 fn cmd_inventory() {
     let root = Path::new("/");
     let os = match vigile_backend_inventory::read_os_release(root) {
@@ -170,7 +220,7 @@ fn cmd_deploy(server_url: Option<&String>) {
         std::process::exit(2);
     };
 
-    eprintln!("[1/5] Fetching policy from {url}...");
+    eprintln!("[1/7] Fetching policy from {url}...");
     let response = match http_get(url, "/agent/v1/policy") {
         Ok(r) => r,
         Err(e) => {
@@ -201,8 +251,35 @@ fn cmd_deploy(server_url: Option<&String>) {
     }
     eprintln!("  Got {} bytes of rules", rules.len());
 
+    // [2] Verify the deployment signature (Ed25519) and the manifest SHA-256.
+    // Fail-closed: nothing is written to disk before both checks pass.
+    eprintln!("[2/7] Verifying rules signature...");
+    let sig_hex = policy.get("rules_signature").and_then(|s| s.as_str()).unwrap_or("");
+    let pub_hex = match std::fs::read_to_string(identity_dir().join("signing-pub.hex")) {
+        Ok(h) => h,
+        Err(e) => {
+            eprintln!("  REFUSED: cannot read signing public key: {e}");
+            eprintln!("  (is vigile-server running? key exported to the identity dir)");
+            std::process::exit(1);
+        }
+    };
+    if !verify_rules_signature(rules, sig_hex, &pub_hex) {
+        eprintln!("  REFUSED: rules signature is INVALID — refusing to deploy.");
+        eprintln!("  The policy may have been tampered with in transit or on the server.");
+        std::process::exit(1);
+    }
+    eprintln!("  Signature valid.");
+
+    eprintln!("[3/7] Verifying manifest SHA-256...");
+    let manifest = policy.get("manifest").cloned().unwrap_or(serde_json::json!({}));
+    if !verify_rules_sha256(rules, &manifest) {
+        eprintln!("  REFUSED: SHA-256 of rules does not match the manifest.");
+        std::process::exit(1);
+    }
+    eprintln!("  Manifest hash matches.");
+
     // [2] Write to staging
-    eprintln!("[2/5] Staging rules...");
+    eprintln!("[4/7] Staging rules...");
     let staging_dir = std::env::temp_dir().join(format!("vigile-deploy-{}", std::process::id()));
     if let Err(e) = std::fs::create_dir_all(&staging_dir) {
         eprintln!("  FAILED to create staging dir: {e}");
@@ -216,7 +293,7 @@ fn cmd_deploy(server_url: Option<&String>) {
     eprintln!("  Staged: {}", staging_file.display());
 
     // [3] Validate with fapolicyd-cli
-    eprintln!("[3/5] Validating with fapolicyd-cli...");
+    eprintln!("[5/7] Validating with fapolicyd-cli...");
     let validation = Command::new("fapolicyd-cli")
         .arg("--check-rules")
         .arg(&staging_file)
@@ -246,7 +323,7 @@ fn cmd_deploy(server_url: Option<&String>) {
     // [4] Deploy flat into /etc/fapolicyd/rules.d/
     // fagenrules uses `find -maxdepth 1 -name '*.rules'`: subdirectories are
     // never traversed, so the file MUST sit directly in rules.d/.
-    eprintln!("[4/5] Deploying to /etc/fapolicyd/rules.d/...");
+    eprintln!("[6/7] Deploying to /etc/fapolicyd/rules.d/...");
     let deploy_dir = Path::new("/etc/fapolicyd/rules.d");
     if !deploy_dir.is_dir() {
         eprintln!("  FAILED: {} does not exist (fapolicyd installed?)", deploy_dir.display());
@@ -273,7 +350,7 @@ fn cmd_deploy(server_url: Option<&String>) {
     let _ = std::fs::remove_dir_all(&staging_dir);
 
     // [5] Reload fapolicyd
-    eprintln!("[5/5] Reloading fapolicyd...");
+    eprintln!("[7/7] Reloading fapolicyd...");
     match Command::new("fapolicyd-cli").arg("--reload-rules").output() {
         Ok(output) if output.status.success() => {
             eprintln!("  fapolicyd rules reloaded.");
@@ -324,5 +401,45 @@ fn cmd_status() {
             eprintln!("fapolicyd: {state}");
         }
         Err(_) => eprintln!("fapolicyd: unknown (systemctl not available)"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used)]
+    use super::*;
+
+    #[test]
+    fn tampered_rules_fail_signature() {
+        // A signature computed over other bytes must not verify.
+        let sk = ed25519_dalek::SigningKey::from_bytes(&[7u8; 32]);
+        // RFC 8032 Ed25519: signature = R || S over (A, M). Produce it via
+        // the raw API: expand the seed, then sign manually is complex —
+        // instead use dalek's re-exported Signer if available; otherwise
+        // this test still exercises the negative paths below.
+        use ed25519_dalek::Signer as _;
+        let sig: ed25519_dalek::Signature = sk.sign(b"original rules");
+        let sig_hex = hex_encode(&sig.to_bytes());
+        let pub_hex = hex_encode(sk.verifying_key().as_bytes());
+        assert!(verify_rules_signature("original rules", &sig_hex, &pub_hex));
+        assert!(!verify_rules_signature("tampered rules", &sig_hex, &pub_hex));
+    }
+
+    #[test]
+    fn garbage_inputs_fail_closed() {
+        assert!(!verify_rules_signature("rules", "zz", "pub"));
+        assert!(!verify_rules_signature("rules", "", ""));
+        assert!(!hex_decode("abc").is_some());
+    }
+
+    #[test]
+    fn sha256_must_match_manifest() {
+        use sha2::Digest as _;
+        let manifest = serde_json::json!({
+            "artifacts": [{"sha256": hex_encode(&sha2::Sha256::digest(b"rules"))}]
+        });
+        assert!(verify_rules_sha256("rules", &manifest));
+        assert!(!verify_rules_sha256("other", &manifest));
+        assert!(!verify_rules_sha256("rules", &serde_json::json!({})));
     }
 }

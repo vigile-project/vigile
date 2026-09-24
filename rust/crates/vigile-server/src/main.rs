@@ -78,6 +78,12 @@ fn main() {
         }
     }
 
+    // Deployment-signing public key for agent-side verification (ISS-088).
+    let _ = std::fs::write(
+        std::path::Path::new("/tmp/vigile-lab").join("signing-pub.hex"),
+        state.lock().ok().map(|st| st.deploy_public_key_hex()).unwrap_or_default(),
+    );
+
     eprintln!();
     eprintln!("  Vigile  https://127.0.0.1:{port}/");
     eprintln!("  Agent API requires mTLS; lab identity in /tmp/vigile-lab.");
@@ -174,6 +180,8 @@ fn serve_policy(
                 "rules": p.rules,
                 "manifest": serde_json::from_str::<serde_json::Value>(&p.manifest_json)
                     .unwrap_or(serde_json::json!({})),
+                "rules_signature": p.rules_signature,
+                "signing_pubkey": state.deploy_public_key_hex(),
                 "deployed_at": p.deployed_at_unix,
             });
             let _ = write_json(stream, 200, "OK", &serde_json::to_string(&response).unwrap_or_default());
@@ -304,18 +312,39 @@ fn handle_admin(
                             .get("manifest")
                             .cloned()
                             .unwrap_or(serde_json::json!({}));
-                        state.deployed_policy =
-                            Some(vigile_server::state::DeployedPolicy {
-                                policy_id: "current".to_string(),
-                                version: 1,
-                                rules: rules.to_string(),
-                                manifest_json: serde_json::to_string(&manifest)
-                                    .unwrap_or_default(),
-                                deployed_at_unix: std::time::SystemTime::now()
-                                    .duration_since(std::time::UNIX_EPOCH)
-                                    .map(|d| d.as_secs() as i64)
-                                    .unwrap_or(0),
-                            });
+                        // ISS-088: sign the exact bytes agents will deploy.
+                        match state.sign_rules(rules) {
+                            Ok(rules_signature) => {
+                                state.deployed_policy =
+                                    Some(vigile_server::state::DeployedPolicy {
+                                        policy_id: "current".to_string(),
+                                        version: 1,
+                                        rules: rules.to_string(),
+                                        manifest_json: serde_json::to_string(&manifest)
+                                            .unwrap_or_default(),
+                                        rules_signature,
+                                        deployed_at_unix: std::time::SystemTime::now()
+                                            .duration_since(std::time::UNIX_EPOCH)
+                                            .map(|d| d.as_secs() as i64)
+                                            .unwrap_or(0),
+                                    });
+                            }
+                            Err(e) => {
+                                state.audit.append(
+                                    "admin",
+                                    "policy.sign-failed",
+                                    "policy",
+                                    &format!("error:{e}"),
+                                );
+                                let _ = write_json(
+                                    stream,
+                                    500,
+                                    "Internal Server Error",
+                                    "{\"error\":\"policy signing failed\"}",
+                                );
+                                return;
+                            }
+                        }
                     }
                     let _ = write_json(
                         stream,

@@ -14,3 +14,6 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 rustls = { workspace = true }
 rustls-pki-types = { workspace = true }
+ed25519-dalek = { workspace = true }
+signature = { workspace = true }
+sha2 = { workspace = true }

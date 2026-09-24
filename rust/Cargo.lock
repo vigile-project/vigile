@@ -1823,10 +1823,13 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 name = "vigile-agent"
 version = "0.1.0"
 dependencies = [
+ "ed25519-dalek",
  "rustls",
  "rustls-pki-types",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
+ "signature 3.0.0",
  "vigile-backend-inventory",
 ]
 
@@ -1937,12 +1940,14 @@ dependencies = [
 name = "vigile-server"
 version = "0.1.0"
 dependencies = [
+ "ed25519-dalek",
  "getrandom 0.3.4",
  "rustls",
  "rustls-pki-types",
  "serde",
  "serde_json",
  "sha2 0.11.0",
+ "signature 3.0.0",
  "vigile-backend-inventory",
  "vigile-pki",
  "vigile-policy",
