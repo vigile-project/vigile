@@ -92,8 +92,8 @@ fn t31_01_rbac_hierarchy() {
 fn t31_02_token_validation() {
     use vigile_server::auth::TokenAuth;
     let (auth, tokens) = TokenAuth::new(&[AdminRole::Viewer, AdminRole::Admin]).unwrap();
-    assert_eq!(auth.validate(&tokens[0].token), Some(AdminRole::Viewer));
-    assert_eq!(auth.validate(&tokens[1].token), Some(AdminRole::Admin));
+    assert_eq!(auth.validate(&tokens[0]), Some(AdminRole::Viewer));
+    assert_eq!(auth.validate(&tokens[1]), Some(AdminRole::Admin));
     assert_eq!(auth.validate("wrong"), None);
 }
 

@@ -61,7 +61,12 @@ fn main() {
     // (tokens + CSR) replaces this in ISS-089.
     {
         let lab_dir = std::path::Path::new("/tmp/vigile-lab");
-        if let Ok(agent_cert) = ca.issue_agent_certificate("agent-lab-001") {
+        let already_provisioned = lab_dir.join("agent-leaf.der").exists()
+            && lab_dir.join("agent-key.der").exists()
+            && lab_dir.join("ca-root.der").exists();
+        if already_provisioned {
+            eprintln!("  Lab agent identity already present in /tmp/vigile-lab");
+        } else if let Ok(agent_cert) = ca.issue_agent_certificate("agent-lab-001") {
             let wrote = std::fs::create_dir_all(lab_dir).is_ok()
                 && std::fs::write(lab_dir.join("agent-leaf.der"), agent_cert.certificate.as_ref())
                     .is_ok()
@@ -328,6 +333,14 @@ fn handle_admin(
                                             .map(|d| d.as_secs() as i64)
                                             .unwrap_or(0),
                                     });
+                                if let Err(e) = state.save_deployed_policy() {
+                                    state.audit.append(
+                                        "admin",
+                                        "policy.persist-failed",
+                                        "policy",
+                                        &format!("error:{e}"),
+                                    );
+                                }
                             }
                             Err(e) => {
                                 state.audit.append(

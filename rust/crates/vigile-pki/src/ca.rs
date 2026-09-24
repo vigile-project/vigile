@@ -117,6 +117,56 @@ fn serial_of(cert: &rcgen::Certificate) -> Result<Vec<u8>, PkiError> {
 }
 
 impl CaHierarchy {
+    /// Persists the hierarchy (certificates + private keys) into `dir`.
+    /// Key files are created 0600; this is the lab/server-local store —
+    /// production roots live offline (KEY_MANAGEMENT.md).
+    pub fn save_to_dir(&self, dir: &std::path::Path) -> Result<(), PkiError> {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::create_dir_all(dir)
+            .map_err(|e| PkiError::Parsing(format!("mkdir {}: {e}", dir.display())))?;
+        let write_cert = |name: &str, der: &[u8]| {
+            std::fs::write(dir.join(name), der)
+                .map_err(|e| PkiError::Parsing(format!("write {name}: {e}")))
+        };
+        let write_key = |name: &str, der: &[u8]| {
+            let path = dir.join(name);
+            std::fs::write(&path, der)
+                .and_then(|_| std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)))
+                .map_err(|e| PkiError::Parsing(format!("write {name}: {e}")))
+        };
+        write_cert("ca-root.der", self.root_cert.as_ref())?;
+        write_key("ca-root.key", &self.root_key_der)?;
+        write_cert("ca-inter.der", self.intermediate_cert.as_ref())?;
+        write_key("ca-inter.key", &self.intermediate_key_der)?;
+        Ok(())
+    }
+
+    /// Loads a hierarchy previously stored by [`Self::save_to_dir`].
+    /// Returns `Ok(None)` when the directory has no complete hierarchy.
+    pub fn load_from_dir(dir: &std::path::Path) -> Result<Option<Self>, PkiError> {
+        let read = |name: &str| std::fs::read(dir.join(name)).ok();
+        let (Some(root_cert), Some(root_key_der), Some(intermediate_cert), Some(intermediate_key_der)) = (
+            read("ca-root.der"),
+            read("ca-root.key"),
+            read("ca-inter.der"),
+            read("ca-inter.key"),
+        ) else {
+            return Ok(None);
+        };
+        // Round-trip sanity: the stored keys must sign under the stored certs.
+        let ca = Self {
+            root_cert: CertificateDer::from(root_cert),
+            root_key_der,
+            intermediate_cert: CertificateDer::from(intermediate_cert),
+            intermediate_key_der,
+        };
+        // issue a throwaway check: if keys/certs mismatch, CSR signing would
+        // fail later — validate eagerly by issuing one test certificate.
+        ca.issue_agent_certificate("persistence-check")
+            .map_err(|e| PkiError::Parsing(format!("stored hierarchy unusable: {e}")))?;
+        Ok(Some(ca))
+    }
+
     /// Generates a fresh hierarchy (one test/lab run = one fresh PKI).
     pub fn generate(root_cn: &str, intermediate_cn: &str) -> Result<Self, PkiError> {
         // Root: simulates the offline key (unconstrained CA).

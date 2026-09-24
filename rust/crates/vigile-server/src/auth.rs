@@ -24,6 +24,15 @@ pub struct AdminToken {
     pub role: AdminRole,
 }
 
+/// SHA-256 of a bearer token (hex). Tokens are 256-bit random values, so a
+/// plain hash is appropriate (no stretching needed) and comparison is
+/// constant-content: only hashes live in memory (ISS-089).
+fn hash_token(token: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let digest = Sha256::digest(token.as_bytes());
+    digest.iter().map(|b| format!("{b:02x}")).collect()
+}
+
 /// Generates a cryptographically random admin token (hex).
 fn random_token() -> Result<String, std::io::Error> {
     let mut bytes = [0u8; 32];
@@ -40,20 +49,18 @@ pub struct TokenAuth {
 impl TokenAuth {
     /// Creates a fresh store with one token per given role.
     /// Returns the tokens (to be printed/configured) and the store.
-    pub fn new(roles: &[AdminRole]) -> Result<(Self, Vec<AdminToken>), std::io::Error> {
+    pub fn new(roles: &[AdminRole]) -> Result<(Self, Vec<String>), std::io::Error> {
         let mut tokens = Vec::new();
+        let mut plaintext = Vec::new();
         for role in roles {
+            let clear = random_token()?;
+            plaintext.push(clear.clone());
             tokens.push(AdminToken {
-                token: random_token()?,
+                token: hash_token(&clear),
                 role: *role,
             });
         }
-        Ok((
-            Self {
-                tokens: tokens.clone(),
-            },
-            tokens,
-        ))
+        Ok((Self { tokens }, plaintext))
     }
 
     /// Validates a Bearer token, returning the role.
@@ -62,9 +69,10 @@ impl TokenAuth {
     pub fn validate(&self, bearer: &str) -> Option<AdminRole> {
         // Strip "Bearer " prefix if present.
         let token = bearer.strip_prefix("Bearer ").unwrap_or(bearer);
+        let hashed = hash_token(token);
         self.tokens
             .iter()
-            .find(|t| t.token == token)
+            .find(|t| t.token == hashed)
             .map(|t| t.role)
     }
 
@@ -93,12 +101,12 @@ mod tests {
         let admin_token = &tokens[1];
 
         // Correct tokens validate to their roles.
-        assert_eq!(auth.validate(&viewer_token.token), Some(AdminRole::Viewer));
-        assert_eq!(auth.validate(&admin_token.token), Some(AdminRole::Admin));
+        assert_eq!(auth.validate(viewer_token), Some(AdminRole::Viewer));
+        assert_eq!(auth.validate(admin_token), Some(AdminRole::Admin));
 
         // Bearer prefix works.
         assert_eq!(
-            auth.validate(&format!("Bearer {}", admin_token.token)),
+            auth.validate(&format!("Bearer {}", admin_token)),
             Some(AdminRole::Admin)
         );
 
@@ -127,6 +135,6 @@ mod tests {
     #[test]
     fn tokens_are_unique() {
         let (_, tokens) = TokenAuth::new(&[AdminRole::Admin, AdminRole::Admin]).unwrap();
-        assert_ne!(tokens[0].token, tokens[1].token);
+        assert_ne!(tokens[0], tokens[1]);
     }
 }
