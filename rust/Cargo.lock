@@ -1831,6 +1831,7 @@ dependencies = [
  "sha2 0.11.0",
  "signature 3.0.0",
  "vigile-backend-inventory",
+ "vigile-pki",
 ]
 
 [[package]]

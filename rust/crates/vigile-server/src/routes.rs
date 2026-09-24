@@ -304,6 +304,7 @@ fn handle_enroll(
             let response = serde_json::json!({
                 "agent_id": enrolled.agent_id,
                 "certificate": base64_encode(enrolled.certificate.certificate.as_ref()),
+                "root": base64_encode(state.ca.root_cert().as_ref()),
                 "chain": enrolled
                     .certificate
                     .chain

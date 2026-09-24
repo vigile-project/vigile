@@ -27,6 +27,7 @@ pub struct IssuedCertificate {
 /// Root + intermediate CAs. In production the root key lives offline and
 /// only the intermediate key stays on the issuing service (TB-5); here
 /// both are held by the same object for lab/testing purposes.
+#[derive(Clone)]
 pub struct CaHierarchy {
     root_cert: CertificateDer<'static>,
     root_key_der: Vec<u8>,

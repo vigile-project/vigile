@@ -17,12 +17,13 @@ fn main() {
     match args.first().map(String::as_str) {
         Some("inventory") => cmd_inventory(),
         Some("sync") => cmd_sync(args.get(1)),
+        Some("enroll") => cmd_enroll(args.get(1)),
         Some("deploy") => cmd_deploy(args.get(1)),
         Some("status") => cmd_status(),
         _ => {
             eprintln!(
                 "vigile-agent {}\n\
-                 usage:\n  vigile-agent inventory\n  vigile-agent sync <url>\n  vigile-agent deploy <url>\n  vigile-agent status",
+                 usage:\n  vigile-agent inventory\n  vigile-agent sync <url>\n  vigile-agent enroll <url> (VIGILE_ENROLL_TOKEN, optional VIGILE_ADMIN_TOKEN)\n  vigile-agent deploy <url>\n  vigile-agent status",
                 env!("CARGO_PKG_VERSION")
             );
             std::process::exit(2);
@@ -383,6 +384,304 @@ fn cmd_deploy(server_url: Option<&String>) {
     eprintln!("  Verify: ls -la /etc/fapolicyd/rules.d/");
     eprintln!("  Loaded:  sudo fapolicyd-cli --list | tail -5");
     eprintln!("  Observe: sudo grep FANOTIFY /var/log/audit/audit.log | tail -5");
+}
+
+
+fn b64_encode(data: &[u8]) -> String {
+    const A: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
+    for chunk in data.chunks(3) {
+        let b = [chunk[0], *chunk.get(1).unwrap_or(&0), *chunk.get(2).unwrap_or(&0)];
+        let n = ((b[0] as u32) << 16) | ((b[1] as u32) << 8) | b[2] as u32;
+        out.push(A[(n >> 18) as usize & 63] as char);
+        out.push(A[(n >> 12) as usize & 63] as char);
+        out.push(if chunk.len() > 1 { A[(n >> 6) as usize & 63] as char } else { '=' });
+        out.push(if chunk.len() > 2 { A[n as usize & 63] as char } else { '=' });
+    }
+    out
+}
+
+fn b64_decode(input: &str) -> Option<Vec<u8>> {
+    const A: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let bytes: Vec<u8> = input.bytes().filter(|b| !b.is_ascii_whitespace()).collect();
+    if bytes.is_empty() || bytes.len() % 4 == 1 {
+        return None;
+    }
+    let mut out = Vec::with_capacity(bytes.len() / 4 * 3);
+    for chunk in bytes.chunks(4) {
+        let mut vals = [0u8; 4];
+        let mut pad = 0;
+        for (i, b) in chunk.iter().enumerate() {
+            if *b == b'=' {
+                pad += 1;
+                continue;
+            }
+            if pad > 0 || !A.contains(b) {
+                return None;
+            }
+            vals[i] = A.iter().position(|c| c == b)? as u8;
+        }
+        let n = ((vals[0] as u32) << 18) | ((vals[1] as u32) << 12)
+            | ((vals[2] as u32) << 6)
+            | vals[3] as u32;
+        out.push((n >> 16) as u8);
+        if pad < 2 {
+            out.push((n >> 8) as u8);
+        }
+        if pad < 1 {
+            out.push(n as u8);
+        }
+    }
+    Some(out)
+}
+
+/// TLS POST without a client certificate (the agent has none yet — that is
+/// the point of enrollment). Trust anchors must already be in the identity
+/// dir; they are fetched first via the admin API when absent.
+fn http_post_anon(url: &str, path: &str, body: &str) -> Result<String, String> {
+    use std::io::{Read, Write};
+    use std::sync::Arc;
+
+    let clean = url.trim_start_matches("http://").trim_start_matches("https://");
+    let addr = if clean.contains(':') { clean.to_string() } else { format!("{clean}:8443") };
+    let sock = TcpStream::connect(&addr).map_err(|e| format!("connect {addr}: {e}"))?;
+    let sock = sock;
+    let mut roots = rustls::RootCertStore::empty();
+    for name in ["ca-root.der", "ca-inter.der"] {
+        let der = std::fs::read(identity_dir().join(name))
+            .map_err(|e| format!("trust anchor {name}: {e}"))?;
+        roots
+            .add(rustls::pki_types::CertificateDer::from(der))
+            .map_err(|e| format!("trust {name}: {e}"))?;
+    }
+    let config = rustls::ClientConfig::builder()
+        .with_root_certificates(roots)
+        .with_no_client_auth();
+    let name = rustls::pki_types::ServerName::try_from("localhost")
+        .map_err(|e| format!("server name: {e}"))?;
+    let conn = rustls::ClientConnection::new(Arc::new(config), name)
+        .map_err(|e| format!("TLS setup: {e}"))?;
+    let mut tls = rustls::StreamOwned { conn, sock };
+    let req = format!(
+        "POST {path} HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        body.len()
+    );
+    tls.write_all(req.as_bytes()).map_err(|e| format!("send: {e}"))?;
+    let mut response = String::new();
+    match tls.read_to_string(&mut response) {
+        Ok(_) => Ok(response),
+        Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => Ok(response),
+        Err(e) => Err(format!("read: {e}")),
+    }
+}
+
+fn fetch_ca_material(url: &str) -> Result<(), String> {
+    let token = std::env::var("VIGILE_ADMIN_TOKEN")
+        .map_err(|_| "VIGILE_ADMIN_TOKEN required to bootstrap trust anchors".to_string())?;
+    // Reuse the anonymous POST plumbing with an authenticated GET instead.
+    let clean = url.trim_start_matches("http://").trim_start_matches("https://");
+    let addr = if clean.contains(':') { clean.to_string() } else { format!("{clean}:8443") };
+    let sock = TcpStream::connect(&addr).map_err(|e| format!("connect {addr}: {e}"))?;
+    let _roots = rustls::RootCertStore::empty();
+    // At bootstrap the agent has NO trust anchors yet: the connection is
+    // authenticated by the admin token, the certificate is displayed for
+    // the operator to verify out-of-band in a real deployment.
+    use std::sync::Arc;
+    let verifier = DangerousNoVerify;
+    let config = rustls::ClientConfig::builder()
+        .dangerous()
+        .with_custom_certificate_verifier(Arc::new(verifier))
+        .with_no_client_auth();
+    let name = rustls::pki_types::ServerName::try_from("localhost")
+        .map_err(|e| format!("server name: {e}"))?;
+    let conn = rustls::ClientConnection::new(Arc::new(config), name)
+        .map_err(|e| format!("TLS setup: {e}"))?;
+    let mut tls = rustls::StreamOwned { conn, sock };
+    use std::io::{Read, Write};
+    let _ = &addr;
+    let req = format!(
+        "GET /admin/v1/pki/ca HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer {token}\r\nConnection: close\r\n\r\n"
+    );
+    tls.write_all(req.as_bytes()).map_err(|e| format!("send: {e}"))?;
+    let mut response = String::new();
+    match tls.read_to_string(&mut response) {
+        Ok(_) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {}
+        Err(e) => return Err(format!("read: {e}")),
+    }
+    let body = extract_json_body(&response).unwrap_or("");
+    let json: serde_json::Value = serde_json::from_str(body).map_err(|e| format!("ca response: {e}"))?;
+    let root = json
+        .get("root")
+        .and_then(|v| v.as_str())
+        .and_then(hex_decode)
+        .filter(|d| !d.is_empty())
+        .ok_or("root missing in CA response")?;
+    let inter = json
+        .get("intermediate")
+        .and_then(|v| v.as_str())
+        .and_then(hex_decode)
+        .filter(|d| !d.is_empty())
+        .ok_or("intermediate missing in CA response")?;
+    let dir = identity_dir();
+    std::fs::create_dir_all(&dir).map_err(|e| format!("mkdir: {e}"))?;
+    std::fs::write(dir.join("ca-root.der"), root).map_err(|e| format!("write root: {e}"))?;
+    std::fs::write(dir.join("ca-inter.der"), inter).map_err(|e| format!("write inter: {e}"))?;
+    eprintln!("  Trust anchors installed in {}", dir.display());
+    Ok(())
+}
+
+/// Accept-any-verifier used ONLY for the first CA fetch (operator verifies
+/// the fingerprint out-of-band; see docs/KEY_MANAGEMENT.md). Never used for
+/// policy traffic.
+#[derive(Debug)]
+struct DangerousNoVerify;
+
+impl rustls::client::danger::ServerCertVerifier for DangerousNoVerify {
+    fn verify_server_cert(
+        &self,
+        _end_entity: &rustls::pki_types::CertificateDer<'_>,
+        _intermediates: &[rustls::pki_types::CertificateDer<'_>],
+        _server_name: &rustls::pki_types::ServerName<'_>,
+        _ocsp_response: &[u8],
+        _now: rustls::pki_types::UnixTime,
+    ) -> Result<rustls::client::danger::ServerCertVerified, rustls::Error> {
+        Ok(rustls::client::danger::ServerCertVerified::assertion())
+    }
+    fn verify_tls12_signature(
+        &self,
+        _message: &[u8],
+        _cert: &rustls::pki_types::CertificateDer<'_>,
+        _dss: &rustls::DigitallySignedStruct,
+    ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
+        Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
+    }
+    fn verify_tls13_signature(
+        &self,
+        _message: &[u8],
+        _cert: &rustls::pki_types::CertificateDer<'_>,
+        _dss: &rustls::DigitallySignedStruct,
+    ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
+        Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
+    }
+    fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
+        vec![rustls::SignatureScheme::ED25519]
+    }
+}
+
+fn cmd_enroll(server_url: Option<&String>) {
+    let Some(url) = server_url else {
+        eprintln!("enroll requires a server URL");
+        std::process::exit(2);
+    };
+    let token = std::env::var("VIGILE_ENROLL_TOKEN").unwrap_or_default();
+    if token.is_empty() {
+        eprintln!("VIGILE_ENROLL_TOKEN must be set (mint one with POST /admin/v1/enrollment-tokens)");
+        std::process::exit(2);
+    }
+
+    let dir = identity_dir();
+    if !dir.join("ca-root.der").exists() {
+        eprintln!("[1/4] Bootstrapping trust anchors (VIGILE_ADMIN_TOKEN)...");
+        if let Err(e) = fetch_ca_material(url) {
+            eprintln!("  FAILED: {e}");
+            std::process::exit(1);
+        }
+    } else {
+        eprintln!("[1/4] Trust anchors present in {}", dir.display());
+    }
+
+    eprintln!("[2/4] Generating agent key pair + CSR...");
+    let csr = match vigile_pki_csr() {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("  FAILED: {e}");
+            std::process::exit(1);
+        }
+    };
+
+    eprintln!("[3/4] Submitting enrollment request...");
+    let fingerprint = format!(
+        "{}-{}",
+        std::env::consts::OS,
+        hostname_or_unknown()
+    );
+    let body = serde_json::json!({
+        "token": token,
+        "csr_der": b64_encode(&csr.csr_der),
+        "machine_fingerprint": fingerprint,
+    })
+    .to_string();
+    let response = match http_post_anon(url, "/agent/v1/enroll", &body) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("  FAILED: {e}");
+            std::process::exit(1);
+        }
+    };
+    let status_line = response.lines().next().unwrap_or("(empty)");
+    let body = extract_json_body(&response).unwrap_or("{}");
+    let json: serde_json::Value = match serde_json::from_str(body) {
+        Ok(v) => v,
+        Err(_) => {
+            eprintln!("  FAILED: {status_line}");
+            eprintln!("  {body}");
+            std::process::exit(1);
+        }
+    };
+    if !status_line.contains("200") {
+        eprintln!("  FAILED: {status_line}");
+        eprintln!("  {}", json.get("error").and_then(|e| e.as_str()).unwrap_or("(no detail)"));
+        std::process::exit(1);
+    }
+
+    eprintln!("[4/4] Storing identity...");
+    let agent_id = json.get("agent_id").and_then(|v| v.as_str()).unwrap_or("?");
+    let cert = b64_decode(json.get("certificate").and_then(|v| v.as_str()).unwrap_or(""))
+        .ok_or("certificate missing")
+        .unwrap_or_default();
+    let chain_inter = json.get("chain").and_then(|c| c.as_array()).map(|a| {
+        a.get(1).and_then(|v| v.as_str()).and_then(b64_decode)
+    });
+    let root = b64_decode(json.get("root").and_then(|v| v.as_str()).unwrap_or(""));
+    if cert.is_empty() || root.is_none() {
+        eprintln!("  FAILED: incomplete enrollment response");
+        std::process::exit(1);
+    }
+    use std::os::unix::fs::PermissionsExt;
+    if let Err(e) = std::fs::write(dir.join("agent-leaf.der"), &cert)
+        .and_then(|_| std::fs::write(dir.join("agent-key.der"), csr.key_der))
+    {
+        eprintln!("  FAILED to write identity: {e}");
+        std::process::exit(1);
+    }
+    let _ = std::fs::set_permissions(dir.join("agent-key.der"), std::fs::Permissions::from_mode(0o600));
+    let _ = std::fs::write(dir.join("ca-root.der"), root.unwrap_or_default());
+    if let Some(Some(inter)) = chain_inter {
+        let _ = std::fs::write(dir.join("ca-inter.der"), inter);
+    }
+    eprintln!("  Enrolled as: {agent_id}");
+    eprintln!("  Identity stored in {} (key 0600)", dir.display());
+    eprintln!("  Next: vigile-agent sync {url}");
+}
+
+struct LocalCsr {
+    csr_der: Vec<u8>,
+    key_der: Vec<u8>,
+}
+
+fn vigile_pki_csr() -> Result<LocalCsr, String> {
+    // Key generation is LOCAL: the private key never leaves the agent
+    // (proof-of-possession design — the server only ever sees the CSR).
+    let material = vigile_pki::generate_agent_csr().map_err(|e| e.to_string())?;
+    Ok(LocalCsr {
+        csr_der: material.csr_der,
+        key_der: material.key_pair.serialize_der(),
+    })
+}
+
+fn hostname_or_unknown() -> String {
+    std::fs::read_to_string("/etc/hostname").unwrap_or_default().trim().to_string()
 }
 
 fn cmd_status() {

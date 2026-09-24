@@ -26,23 +26,20 @@ fn main() {
         }
     };
 
-    // Lab PKI: fresh hierarchy per run until ISS-089 persists it on disk.
+    // Single CA: the persistent hierarchy in ServerState signs EVERYTHING
+    // (server TLS cert, agent enrollment, lab export). One issuer, one
+    // trust anchor set — fixing the ephemeral-vs-persistent mismatch.
     let (tls_config, ca) = {
-        let ca = match vigile_pki::CaHierarchy::generate("Vigile Lab Root", "Vigile Lab Issuer") {
-            Ok(c) => c,
-            Err(e) => {
-                eprintln!("vigile-server: cannot generate lab PKI: {e}");
-                std::process::exit(1);
-            }
-        };
-        let server_cert = match ca.issue_server_certificate("localhost") {
+        let st = state.lock().unwrap_or_else(|e| e.into_inner());
+        let server_cert = match st.ca.issue_server_certificate("localhost") {
             Ok(c) => c,
             Err(e) => {
                 eprintln!("vigile-server: cannot issue server certificate: {e}");
                 std::process::exit(1);
             }
         };
-        match vigile_pki::mtls::server_config_optional_client(&server_cert, &ca) {
+        let ca = st.ca.clone();
+        match vigile_pki::mtls::server_config_optional_client(&server_cert, &st.ca) {
             Ok(cfg) => (cfg, ca),
             Err(e) => {
                 eprintln!("vigile-server: cannot build TLS config: {e}");
@@ -96,9 +93,6 @@ fn main() {
     eprintln!("  Press Ctrl+C to stop.");
     eprintln!();
 
-    // Keep the CA alive for the lifetime of the process (agent enrolment
-    // helper reads it); the TLS config already holds what it needs.
-    let _ca_anchor = &ca;
 
     for stream in listener.incoming() {
         let Ok(sock) = stream else { continue };
@@ -381,6 +375,15 @@ fn handle_admin(
                     );
                 }
             }
+        }
+
+        // CA material for agent bootstrap (trust anchors distribution)
+        ("GET", "pki/ca") => {
+            let response = serde_json::json!({
+                "root": state.ca.root_cert().as_ref().iter().map(|b| format!("{b:02x}")).collect::<String>(),
+                "intermediate": state.ca.intermediate_cert().as_ref().iter().map(|b| format!("{b:02x}")).collect::<String>(),
+            });
+            let _ = write_json(stream, 200, "OK", &response.to_string());
         }
 
         // Issue enrollment token

@@ -10,6 +10,7 @@ workspace = true
 
 [dependencies]
 vigile-backend-inventory = { path = "../backends/vigile-backend-inventory" }
+vigile-pki = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 rustls = { workspace = true }
