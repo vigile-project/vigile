@@ -1,6 +1,10 @@
 # SPRINT 12 — Phase 10 : durcissement production & qualification
 
-> **Statut** : **En cours** — ouvert le 2026-09-11
+> **Statut** : **Terminé** — ouvert le 2026-09-11, clos le 2026-09-25
+> **Gate de sortie franchie** : tag signé `0.1.0-rc1` (clé Vigile Security
+> Contact 9A449E11), revue sécurité A→I complète, 42 suites de tests
+> vertes, exercice DR chronométré. Les issues 087→093 sont closes ;
+> écarts restants tracés dans le backlog (090-2/4/5, P2/P3).
 > **Périmètre** : qualification production selon ROADMAP (audit externe,
 > pentest, charge, DR, rotation, pilote, RC). Gate de sortie : critères §30
 > du cahier des charges + checklist de revue de sécurité complète
