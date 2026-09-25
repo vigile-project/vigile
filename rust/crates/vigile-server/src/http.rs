@@ -151,10 +151,15 @@ pub fn parse_request(stream: &mut dyn Stream) -> Result<Request, ParseError> {
     }
 
     // --- Read body per Content-Length ---
-    let content_length: usize = headers
-        .get("content-length")
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(0);
+    // A present-but-unparseable Content-Length is a malformed request:
+    // silently coercing it to 0 would accept requests the strict parser
+    // is contractually required to reject (found by the ISS-091 fuzz).
+    let content_length: usize = match headers.get("content-length") {
+        Some(v) => v.parse().map_err(|_| {
+            ParseError::BadRequest(format!("invalid Content-Length: {v:?}"))
+        })?,
+        None => 0,
+    };
 
     if content_length > MAX_BODY_BYTES {
         return Err(ParseError::BodyTooLarge);

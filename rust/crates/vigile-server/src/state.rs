@@ -216,10 +216,8 @@ impl ServerState {
                         })
                         .collect();
                     if pairs.len() != parsed.len() {
-                        return Err(format!(
-                            "admin-tokens.json: unknown role (expected viewer|admin|platform-admin)"
-                        )
-                        .into());
+                        return Err("admin-tokens.json: unknown role (expected viewer|admin|platform-admin)"
+                            .into());
                     }
                     (
                         crate::auth::TokenAuth::from_pairs(&pairs),
