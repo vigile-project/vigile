@@ -25,11 +25,24 @@ pub struct ServerState {
     pub deployed_policy: Option<DeployedPolicy>,
     /// Where the CA, signing seed and deployed policy persist (ISS-089).
     pub data_dir: std::path::PathBuf,
+    /// Enrolled agents (revocation registry, ISS-090-3).
+    pub agents: Vec<AgentRecord>,
+    /// Bumped on quarantine: the accept loop rebuilds the TLS config
+    /// (fresh CRL) when it changes.
+    pub tls_generation: u64,
     // Lab deployment-signing seed (ISS-088). Production: isolated signer (TB-5).
     deploy_signing_seed: [u8; 32],
     /// PostgreSQL-backed agent registry (None = in-memory fallback for
     /// tests without a database).
     pub store: Option<PgStore>,
+}
+
+/// Enrolled agent tracked for revocation (ISS-090-3).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct AgentRecord {
+    pub agent_id: String,
+    pub serial_hex: String,
+    pub status: String, // "active" | "quarantined"
 }
 
 /// A compiled policy ready for agent download.
@@ -46,6 +59,60 @@ pub struct DeployedPolicy {
 }
 
 impl ServerState {
+    fn load_agents(data_dir: &std::path::Path) -> Vec<AgentRecord> {
+        std::fs::read_to_string(data_dir.join("agents.json"))
+            .ok()
+            .and_then(|raw| serde_json::from_str(&raw).ok())
+            .unwrap_or_default()
+    }
+
+    fn save_agents(&self) {
+        let path = self.data_dir.join("agents.json");
+        let tmp = self.data_dir.join("agents.json.tmp");
+        if let Ok(json) = serde_json::to_string_pretty(&self.agents) {
+            if std::fs::write(&tmp, json).is_ok() {
+                let _ = std::fs::rename(&tmp, path);
+            }
+        }
+    }
+
+    /// Records a newly enrolled agent.
+    pub fn register_agent(&mut self, agent_id: &str, serial: &[u8]) {
+        let serial_hex: String = serial.iter().map(|b| format!("{b:02x}")).collect();
+        self.agents.retain(|a| a.agent_id != agent_id);
+        self.agents.push(AgentRecord {
+            agent_id: agent_id.to_string(),
+            serial_hex,
+            status: "active".to_string(),
+        });
+        self.save_agents();
+    }
+
+    /// Quarantines an agent: its serial enters the next CRL.
+    pub fn quarantine_agent(&mut self, agent_id: &str) -> Result<(), String> {
+        let Some(record) = self.agents.iter_mut().find(|a| a.agent_id == agent_id) else {
+            return Err(format!("unknown agent: {agent_id}"));
+        };
+        record.status = "quarantined".to_string();
+        self.save_agents();
+        self.tls_generation += 1;
+        Ok(())
+    }
+
+    /// Serials of quarantined agents, for the leaf CRL.
+    pub fn revoked_serials(&self) -> Vec<Vec<u8>> {
+        self.agents
+            .iter()
+            .filter(|a| a.status == "quarantined")
+            .filter_map(|a| {
+                (0..a.serial_hex.len())
+                    .step_by(2)
+                    .map(|i| u8::from_str_radix(a.serial_hex.get(i..i + 2)?, 16).ok())
+                    .collect::<Option<Vec<u8>>>()
+            })
+            .collect()
+    }
+
     /// Reads a persisted deployed policy (if any) so a restart keeps
     /// serving the last compiled rules and their signature.
     fn load_deployed_policy(data_dir: &std::path::Path) -> Option<DeployedPolicy> {
@@ -128,15 +195,54 @@ impl ServerState {
             EnrollmentTokenVerifier::from_verifying_key(enrollment_issuer.verifying_key());
         let envelope_verifier = EnvelopeVerifier::default();
 
-        let (admin_auth, tokens) = crate::auth::TokenAuth::new(&[
-            crate::auth::AdminRole::Viewer,
-            crate::auth::AdminRole::Admin,
-        ])
-        .map_err(|e| format!("admin tokens: {e}"))?;
+        // ISS-090-1: admin tokens come from an operator-managed file when
+        // present (production path); generated+printed otherwise (lab).
+        let (admin_auth, tokens, tokens_from_file) = {
+            let path = data_dir.join("admin-tokens.json");
+            match std::fs::read_to_string(&path) {
+                Ok(raw) => {
+                    let parsed: Vec<(String, String)> = serde_json::from_str(&raw)
+                        .map_err(|e| format!("admin-tokens.json: {e}"))?;
+                    let pairs: Vec<(String, crate::auth::AdminRole)> = parsed
+                        .iter()
+                        .filter_map(|(t, r)| {
+                            let role = match r.as_str() {
+                                "viewer" => Some(crate::auth::AdminRole::Viewer),
+                                "admin" => Some(crate::auth::AdminRole::Admin),
+                                "platform-admin" => Some(crate::auth::AdminRole::PlatformAdmin),
+                                _ => None,
+                            };
+                            role.map(|role| (t.clone(), role))
+                        })
+                        .collect();
+                    if pairs.len() != parsed.len() {
+                        return Err(format!(
+                            "admin-tokens.json: unknown role (expected viewer|admin|platform-admin)"
+                        )
+                        .into());
+                    }
+                    (
+                        crate::auth::TokenAuth::from_pairs(&pairs),
+                        Vec::new(),
+                        true,
+                    )
+                }
+                Err(_) => {
+                    let (auth, toks) = crate::auth::TokenAuth::new(&[
+                        crate::auth::AdminRole::Viewer,
+                        crate::auth::AdminRole::Admin,
+                    ])
+                    .map_err(|e| format!("admin tokens: {e}"))?;
+                    (auth, toks, false)
+                }
+            }
+        };
 
-        // Print admin tokens for the operator (lab only — in production
-        // these come from configuration/secrets management). Only the
-        // SHA-256 hashes are retained in memory (ISS-089).
+        if tokens_from_file {
+            eprintln!("vigile-server: admin tokens loaded from admin-tokens.json (not printed)");
+        }
+        // Print admin tokens for the operator (lab only). Only the SHA-256
+        // hashes are retained in memory (ISS-089).
         let roles = [
             crate::auth::AdminRole::Viewer,
             crate::auth::AdminRole::Admin,
@@ -183,6 +289,8 @@ impl ServerState {
             admin_auth,
             audit: AuditJournal::new(),
             deployed_policy: Self::load_deployed_policy(&data_dir),
+            agents: Self::load_agents(&data_dir),
+            tls_generation: 0,
             data_dir,
             deploy_signing_seed,
             store: None,

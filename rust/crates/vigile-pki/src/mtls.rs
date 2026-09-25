@@ -80,8 +80,10 @@ pub fn server_config(
 pub fn server_config_optional_client(
     server: &IssuedCertificate,
     ca: &CaHierarchy,
+    revoked_serials: &[Vec<u8>],
 ) -> Result<Arc<ServerConfig>, PkiError> {
-    let leaf_crl = ca.leaf_crl(1, &[])?;
+    let crl_number = revoked_serials.len().max(1) as u32;
+    let leaf_crl = ca.leaf_crl(crl_number, revoked_serials)?;
     let intermediate_crl = ca.intermediate_crl(1, &[])?;
     let verifier = WebPkiClientVerifier::builder(trust_store(ca)?.into())
         .with_crls(vec![

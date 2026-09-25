@@ -39,7 +39,8 @@ fn main() {
             }
         };
         let ca = st.ca.clone();
-        match vigile_pki::mtls::server_config_optional_client(&server_cert, &st.ca) {
+        let revoked = st.revoked_serials();
+        match vigile_pki::mtls::server_config_optional_client(&server_cert, &st.ca, &revoked) {
             Ok(cfg) => (cfg, ca),
             Err(e) => {
                 eprintln!("vigile-server: cannot build TLS config: {e}");
@@ -94,16 +95,45 @@ fn main() {
     eprintln!();
 
 
+    // Hot-swappable TLS config: quarantine rebuilds it with a fresh CRL.
+    let tls_current: std::sync::RwLock<Arc<rustls::ServerConfig>> =
+        std::sync::RwLock::new(tls_config);
+    let applied_generation: std::sync::RwLock<u64> = std::sync::RwLock::new(0);
+
     for stream in listener.incoming() {
         let Ok(sock) = stream else { continue };
         let _ = sock.set_read_timeout(Some(Duration::from_secs(10)));
-        let conn = match rustls::ServerConnection::new(tls_config.clone()) {
+        let Ok(mut st) = state.lock() else { continue };
+
+        // Hot CRL reload: rebuild the TLS config when a quarantine happened.
+        let applied = *applied_generation.read().unwrap_or_else(|e| e.into_inner());
+        if st.tls_generation > applied {
+            let revoked = st.revoked_serials();
+            if let Ok(cert) = st.ca.issue_server_certificate("localhost") {
+                if let Ok(cfg) =
+                    vigile_pki::mtls::server_config_optional_client(&cert, &st.ca, &revoked)
+                {
+                    let mut w = tls_current.write().unwrap_or_else(|e| e.into_inner());
+                    *w = cfg;
+                    let mut g = applied_generation.write().unwrap_or_else(|e| e.into_inner());
+                    *g = st.tls_generation;
+                    eprintln!(
+                        "vigile-server: TLS config reloaded ({} revoked serial(s) in CRL)",
+                        revoked.len()
+                    );
+                }
+            }
+        }
+
+        let cfg = tls_current
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone();
+        let conn = match rustls::ServerConnection::new(cfg) {
             Ok(c) => c,
             Err(_) => continue,
         };
         let mut tls = rustls::StreamOwned { conn, sock };
-
-        let Ok(mut st) = state.lock() else { continue };
 
         match vigile_server::http::parse_request(&mut tls) {
             Ok(request) => {
@@ -372,6 +402,42 @@ fn handle_admin(
                         400,
                         "Bad Request",
                         &serde_json::json!({"error": e}).to_string(),
+                    );
+                }
+            }
+        }
+
+        // Enrolled agents (revocation registry)
+        ("GET", "agents") => {
+            let response = serde_json::json!({
+                "agents": state.agents,
+                "quarantined": state.revoked_serials().len(),
+            });
+            let _ = write_json(stream, 200, "OK", &response.to_string());
+        }
+
+        // Quarantine an agent: revokes its certificate in the next CRL.
+        ("POST", "agents/quarantine") => {
+            let body = String::from_utf8_lossy(&request.body);
+            let agent_id = serde_json::from_str::<serde_json::Value>(&body)
+                .ok()
+                .and_then(|v| v.get("agent_id").and_then(|a| a.as_str()).map(String::from));
+            match agent_id.and_then(|id| state.quarantine_agent(&id).ok().map(|_| id)) {
+                Some(id) => {
+                    state.audit.append("admin", "agent.quarantined", &id, "revoked");
+                    let _ = write_json(
+                        stream,
+                        200,
+                        "OK",
+                        &serde_json::json!({"quarantined": id, "note": "CRL hot-reloaded on next connection"}).to_string(),
+                    );
+                }
+                None => {
+                    let _ = write_json(
+                        stream,
+                        400,
+                        "Bad Request",
+                        "{\"error\":\"unknown agent_id\"}",
                     );
                 }
             }

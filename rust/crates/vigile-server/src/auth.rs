@@ -63,6 +63,22 @@ impl TokenAuth {
         Ok((Self { tokens }, plaintext))
     }
 
+
+    /// Builds the store from operator-provided tokens (production path —
+    /// secrets management writes the file, nothing is generated or printed).
+    /// Only hashes are retained.
+    pub fn from_pairs(pairs: &[(String, AdminRole)]) -> Self {
+        Self {
+            tokens: pairs
+                .iter()
+                .map(|(token, role)| AdminToken {
+                    token: hash_token(token),
+                    role: *role,
+                })
+                .collect(),
+        }
+    }
+
     /// Validates a Bearer token, returning the role.
     /// Timing-safe comparison is not needed here because the tokens are
     /// 256-bit random values — brute force is computationally infeasible.

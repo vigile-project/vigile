@@ -295,6 +295,8 @@ fn handle_enroll(
         tenant,
     ) {
         Ok(enrolled) => {
+            // Track for revocation (ISS-090-3), persisted atomically.
+            state.register_agent(&enrolled.agent_id, &enrolled.certificate.serial);
             // Issue the initial server nonce for anti-replay.
             let nonce = state
                 .envelope_verifier
@@ -313,6 +315,7 @@ fn handle_enroll(
                     .collect::<Vec<_>>(),
                 "server_nonce": nonce,
             });
+            state.register_agent(&enrolled.agent_id, &enrolled.certificate.serial);
             let body = serde_json::to_string(&response).unwrap_or_default();
             write_json(stream, 200, "OK", &body)
         }
