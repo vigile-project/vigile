@@ -10,7 +10,11 @@
 
 | Version | Support |
 |---|---|
-| aucune release publiée | — (phase de cadrage) |
+| 0.1.0-rc1 (2026-09-25) | candidat release — labo/observation, **pas** d'usage production enforcing |
+
+Qualification 0.1.0-rc1 : mTLS effectif, règles signées, persistance,
+enrôlement à usage unique, révocation à chaud, fuzz parseur, exercice DR
+(voir `docs/security/REVIEW-2026-09-PHASE10.md` et SPRINT_12).
 
 (Ce tableau sera tenu à jour à chaque release ; politique de versions
 proposée : dernière mineure + correctifs de la majeure précédente pendant
